@@ -92,10 +92,16 @@ function resolveRemovableAppPath(execPath, platform, env: any = {}) {
   }
 
   if (platform === 'win32') {
-    // NSIS per-user installs Hermes.exe directly in the install dir.
+    // NSIS per-user installs Pocura.exe directly in the install dir. The
+    // Hermes/hermes-desktop patterns stay so the uninstaller can still find
+    // and remove pre-rebrand installs.
     const dir = p.dirname(exe)
 
-    if (/[\\/]Hermes$/i.test(dir) || /[\\/]hermes-desktop$/i.test(dir)) {
+    if (
+      /[\\/]Pocura$/i.test(dir) ||
+      /[\\/]Hermes$/i.test(dir) ||
+      /[\\/]hermes-desktop$/i.test(dir)
+    ) {
       return dir
     }
 
