@@ -1,5 +1,5 @@
 # ============================================================================
-# Hermes Agent Installer for Windows
+# Pocura Agent Installer for Windows
 # ============================================================================
 # Installation script for Windows (PowerShell).
 # Uses uv for fast Python provisioning and package management.
@@ -207,7 +207,7 @@ function Get-WindowsArch {
 function Write-Banner {
     Write-Host ""
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
-    Write-Host "|             * Hermes Agent Installer                    |" -ForegroundColor Magenta
+    Write-Host "|             * Pocura Agent Installer                    |" -ForegroundColor Magenta
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
     Write-Host "|  An open source AI agent by Nous Research.              |" -ForegroundColor Magenta
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
@@ -2866,9 +2866,26 @@ function New-DesktopShortcuts {
             $iconLocation = "$TargetExe,0"
         }
 
-        $targets = @(
+        # Pre-rebrand shortcuts (Hermes.lnk) are removed rather than renamed
+        # in-place: a .lnk that keeps the same path across a rebrand is
+        # exactly the case where Windows' shell icon cache sticks with the
+        # OLD bitmap even after TargetPath/IconLocation are updated. Deleting
+        # and recreating under the new name forces a genuinely fresh icon
+        # association. Best-effort: a leftover old shortcut is cosmetic, not
+        # worth failing the install over.
+        $legacyTargets = @(
             (Join-Path ([Environment]::GetFolderPath('Programs')) 'Hermes.lnk'),
             (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Hermes.lnk')
+        )
+        foreach ($legacyLnk in $legacyTargets) {
+            if (Test-Path $legacyLnk) {
+                Remove-Item -LiteralPath $legacyLnk -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        $targets = @(
+            (Join-Path ([Environment]::GetFolderPath('Programs')) 'Pocura.lnk'),
+            (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Pocura.lnk')
         )
 
         foreach ($lnkPath in $targets) {
@@ -2881,7 +2898,7 @@ function New-DesktopShortcuts {
                 $sc.TargetPath = $TargetExe
                 $sc.WorkingDirectory = $workDir
                 $sc.IconLocation = $iconLocation
-                $sc.Description = 'Hermes Agent'
+                $sc.Description = 'Pocura Agent'
                 $sc.Save()
                 Write-Success "Shortcut created: $lnkPath"
             } catch {
@@ -2892,7 +2909,7 @@ function New-DesktopShortcuts {
         # Bust the Windows shell icon cache so the desktop/Start-Menu shortcut
         # repaints with the (possibly newly-stamped) icon instead of a stale
         # cached bitmap. Critical on the --update path: the exe was re-stamped
-        # with the Hermes icon, but without this the shortcut can keep drawing
+        # with the Pocura icon, but without this the shortcut can keep drawing
         # the old Electron icon until the user manually refreshes / reboots.
         # Best-effort and silent — never fail the install over a cosmetic cache.
         try {
@@ -3258,7 +3275,7 @@ $InstallStages = @(
     @{ Name = "git";              Title = "Installing Git";                       Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Git" }
     @{ Name = "node";             Title = "Detecting Node.js";                    Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Node" }
     @{ Name = "system-packages";  Title = "Installing ripgrep and ffmpeg";        Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-SystemPackages" }
-    @{ Name = "repository";       Title = "Cloning Hermes repository";            Category = "install";      NeedsUserInput = $false; Worker = "Stage-Repository" }
+    @{ Name = "repository";       Title = "Cloning Pocura repository";            Category = "install";      NeedsUserInput = $false; Worker = "Stage-Repository" }
     @{ Name = "venv";             Title = "Creating Python virtual environment";  Category = "install";      NeedsUserInput = $false; Worker = "Stage-Venv" }
     @{ Name = "dependencies";     Title = "Installing Python dependencies";       Category = "install";      NeedsUserInput = $false; Worker = "Stage-Dependencies" }
     @{ Name = "node-deps";        Title = "Installing Node.js dependencies";      Category = "install";      NeedsUserInput = $false; Worker = "Stage-NodeDeps" }
@@ -3270,7 +3287,7 @@ if ($IncludeDesktop) {
     $InstallStages += @{ Name = "desktop"; Title = "Building desktop app"; Category = "install"; NeedsUserInput = $false; Worker = "Stage-Desktop" }
 }
 $InstallStages += @(
-    @{ Name = "path";             Title = "Adding Hermes to PATH";                Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-Path" }
+    @{ Name = "path";             Title = "Adding Pocura to PATH";                Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-Path" }
     @{ Name = "config-templates"; Title = "Writing configuration templates";      Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-ConfigTemplates" }
     @{ Name = "platform-sdks";    Title = "Installing messaging platform SDKs";   Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-PlatformSdks" }
     @{ Name = "bootstrap-marker"; Title = "Marking install complete";              Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-BootstrapMarker" }
