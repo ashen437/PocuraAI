@@ -533,7 +533,7 @@ def run_gui_uninstall(args):
     print()
     if agent_is_installed(hermes_home):
         print(color("Kept intact:", Colors.GREEN, Colors.BOLD))
-        print(f"  • The Hermes agent at {hermes_home / 'hermes-agent'}")
+        print(f"  • The Hermes agent at {hermes_home / 'pocura-agent'}")
         print(f"  • Your config, sessions, and secrets under {hermes_home}")
         print()
 

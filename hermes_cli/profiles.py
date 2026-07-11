@@ -94,7 +94,8 @@ _CLONE_ALL_STRIP: list[str] = [
 # portable snapshot; clone-all keeps those because the cloned profile is
 # meant to keep working immediately).
 _CLONE_ALL_DEFAULT_EXCLUDE_ROOT: frozenset[str] = frozenset({
-    "hermes-agent",
+    "pocura-agent",
+    "hermes-agent",  # legacy (pre-rebrand) checkout name
     ".worktrees",
     "profiles",
     "bin",
@@ -202,7 +203,8 @@ def _clone_all_copytree_ignore(source_dir: Path):
 # export is a portable, reasonable-size archive of actual profile data.
 _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
     # Infrastructure
-    "hermes-agent",         # repo checkout (multi-GB)
+    "pocura-agent",         # repo checkout (multi-GB)
+    "hermes-agent",         # legacy (pre-rebrand) checkout name
     ".worktrees",           # git worktrees
     "profiles",             # other profiles — never recursive-export
     "bin",                  # installed binaries (tirith, etc.)

@@ -762,7 +762,7 @@ def _agent_cache_base_for_env(env: Any) -> str | None:
 
         env_name = env.__class__.__name__
         if env_name in {"DockerEnvironment", "SingularityEnvironment", "ModalEnvironment"}:
-            return "/root/.hermes"
+            return "/root/.pocura"
 
     # If no environment has been created yet, only backends with deterministic
     # Hermes cache roots can be translated without side effects. SSH can still
@@ -770,9 +770,9 @@ def _agent_cache_base_for_env(env: Any) -> str | None:
     # the cache file before the first command runs.
     backend = (os.getenv("TERMINAL_ENV") or "local").strip().lower()
     if backend in {"docker", "singularity", "modal"}:
-        return "/root/.hermes"
+        return "/root/.pocura"
     if backend == "ssh":
-        return "~/.hermes"
+        return "~/.pocura"
     return None
 
 

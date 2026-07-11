@@ -122,7 +122,7 @@ def _resolve_spill_dir(directory_override: Optional[str], session_id: Optional[s
             base = Path(get_hermes_home()) / "hook_outputs"
         except Exception:
             # Last-resort fallback: HERMES_HOME env var, then ~/.hermes
-            home = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
+            home = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.pocura")
             base = Path(home) / "hook_outputs"
 
     # Group by session so spills are contained per conversation.

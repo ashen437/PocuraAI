@@ -53,8 +53,22 @@ pub async fn run_script(
         cmd.current_dir(cwd);
     }
 
-    if let Some(home) = hermes_home_override {
-        cmd.env("HERMES_HOME", home);
+    // ALWAYS pin HERMES_HOME for the child script to the exact home this
+    // installer resolved (override wins when a test supplies one). Without
+    // this, install.ps1 / install.sh falls back to ITS OWN built-in default —
+    // a second, independent source of truth that can disagree with ours
+    // whenever the downloaded script revision drifts from this binary
+    // (e.g. an older cached script naming the home dir differently). The
+    // script's `$HermesHome` param / `HERMES_HOME=${HERMES_HOME:-…}` default
+    // both honor this env var, so pinning it makes the Rust resolution
+    // authoritative for the whole install.
+    match hermes_home_override {
+        Some(home) => {
+            cmd.env("HERMES_HOME", home);
+        }
+        None => {
+            cmd.env("HERMES_HOME", crate::paths::hermes_home().as_os_str());
+        }
     }
 
     cmd.stdin(Stdio::null())

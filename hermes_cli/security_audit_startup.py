@@ -169,7 +169,7 @@ def _container_no_volume_mount(hermes_home: Optional[Path]) -> Optional[str]:
     if not _in_container():
         return None
     home = hermes_home or Path(
-        os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+        os.environ.get("HERMES_HOME", os.path.expanduser("~/.pocura"))
     )
     try:
         if _path_is_mounted(home):
