@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from hermes_cli.config import (
     format_managed_message,
     get_managed_system,
@@ -39,6 +41,11 @@ def test_recommended_update_command_defaults_to_hermes_update(monkeypatch):
         assert recommended_update_command() == "hermes update"
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_blocks_managed_homebrew(monkeypatch, capsys):
     monkeypatch.setenv("HERMES_MANAGED", "homebrew")
 

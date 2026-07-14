@@ -12,6 +12,8 @@ import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from hermes_cli.main import cmd_update
 
 
@@ -50,6 +52,11 @@ def _make_run_side_effect(
 class TestUpdateYesConfigMigration:
     """--yes auto-answers the config-migration prompt and skips API-key prompts."""
 
+    @pytest.mark.skip(
+        reason="cmd_update() is a no-op self-update-disabled guard for this build "
+        "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+        "update logic that guard now makes unreachable."
+    )
     @patch("hermes_cli.config.migrate_config")
     @patch("hermes_cli.config.check_config_version", return_value=(1, 2))
     @patch("hermes_cli.config.get_missing_config_fields", return_value=[])
@@ -89,6 +96,11 @@ class TestUpdateYesConfigMigration:
         # The "Would you like to configure them now?" prompt text never appears.
         assert "Would you like to configure them now?" not in out
 
+    @pytest.mark.skip(
+        reason="cmd_update() is a no-op self-update-disabled guard for this build "
+        "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+        "update logic that guard now makes unreachable."
+    )
     @patch("hermes_cli.config.migrate_config")
     @patch("hermes_cli.config.check_config_version", return_value=(1, 2))
     @patch("hermes_cli.config.get_missing_config_fields", return_value=[])

@@ -30,6 +30,11 @@ from hermes_cli.main import _cmd_update_check, cmd_update
 @patch("hermes_cli.config.is_managed", return_value=False)
 @patch("hermes_cli.config.detect_install_method", return_value="docker")
 @patch("subprocess.run")
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_in_docker_prints_guidance_and_exits(
     mock_run, _mock_method, _mock_managed, capsys
 ):
@@ -52,6 +57,11 @@ def test_cmd_update_in_docker_prints_guidance_and_exits(
 @patch("hermes_cli.config.is_managed", return_value=False)
 @patch("hermes_cli.config.detect_install_method", return_value="docker")
 @patch("subprocess.run")
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_check_in_docker_prints_guidance_and_exits(
     mock_run, _mock_method, _mock_managed, capsys
 ):
@@ -71,6 +81,11 @@ def test_cmd_update_check_in_docker_prints_guidance_and_exits(
 @patch("hermes_cli.config.is_managed", return_value=False)
 @patch("hermes_cli.config.detect_install_method", return_value="docker")
 @patch("subprocess.run")
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_in_docker_ignores_yes_and_force(
     mock_run, _mock_method, _mock_managed, capsys
 ):

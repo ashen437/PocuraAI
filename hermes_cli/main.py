@@ -9269,6 +9269,20 @@ def cmd_update(args):
         managed_error,
     )
 
+    # Self-update is disabled for this build. The source repo this checkout
+    # tracks is private, so both the git path (`git fetch`/`git pull` against
+    # origin) and the `--check` path (`git ls-remote`) need credentials —
+    # there is no anonymous path the way there is for a public OSS repo.
+    # Running either unattended (e.g. from the desktop app's "Apply Update"
+    # button, which hands off to Pocura-Setup.exe --update, which calls this)
+    # would otherwise silently pop a GitHub sign-in prompt with no user
+    # action to explain it. Block before any git/pip logic runs, in every
+    # mode (--check included), so this can never happen. Ship new versions
+    # by distributing a new installer instead.
+    print("✗ Self-update is disabled for this build.")
+    print("  A new version of Pocura Agent is distributed as a new installer, not a self-update.")
+    return
+
     # Deprecation notice for pip/Homebrew installs — printed before the
     # managed-mode early-return below so Homebrew users (who are blocked from
     # applying the update here) still see it. Warn, don't block: the update

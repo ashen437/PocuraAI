@@ -493,27 +493,31 @@ describe('startUpdatePoller', () => {
     vi.useRealTimers()
   })
 
-  it('calls checkUpdates() on startup so the version pill populates immediately', async () => {
+  // Desktop self-update-via-git is disabled (private source repo — a passive
+  // background `git fetch`/`ls-remote` has no anonymous path and would pop a
+  // GitHub Credential Manager sign-in dialog with no user action to explain
+  // it, see electron/main.ts's checkUpdates()). The poller must never call
+  // the desktop check on its own; checkBackendUpdates (a plain HTTP call,
+  // unrelated to git) is unaffected and still fires.
+  it('never calls checkUpdates() on startup', async () => {
     startUpdatePoller()
 
-    // checkUpdates() is async — flush microtasks without advancing the 30-min interval.
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(checkMock).toHaveBeenCalled()
-    expect($updateStatus.get()?.behind).toBe(5)
+    expect(checkMock).not.toHaveBeenCalled()
   })
 
-  it('calls checkUpdates() on each interval tick', async () => {
+  it('never calls checkUpdates() on an interval tick', async () => {
     startUpdatePoller()
     await vi.advanceTimersByTimeAsync(0)
     checkMock.mockClear()
 
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
 
-    expect(checkMock).toHaveBeenCalled()
+    expect(checkMock).not.toHaveBeenCalled()
   })
 
-  it('calls checkUpdates() when the window regains focus', async () => {
+  it('never calls checkUpdates() when the window regains focus', async () => {
     startUpdatePoller()
     await vi.advanceTimersByTimeAsync(0)
     checkMock.mockClear()
@@ -524,6 +528,6 @@ describe('startUpdatePoller', () => {
 
     await vi.advanceTimersByTimeAsync(0)
 
-    expect(checkMock).toHaveBeenCalled()
+    expect(checkMock).not.toHaveBeenCalled()
   })
 })

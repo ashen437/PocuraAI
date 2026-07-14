@@ -717,6 +717,11 @@ def test_resume_cold_start_skips_when_gateway_already_running(
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_aborts_on_concurrent_instance(_winp, tmp_path, capsys):
     """If another hermes.exe is running, the update bails out before
     touching the working tree (exit code 2)."""
@@ -759,6 +764,11 @@ def test_cmd_update_aborts_on_concurrent_instance(_winp, tmp_path, capsys):
 
 
 @patch.object(cli_main, "_is_windows", return_value=True)
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo -- see hermes_cli/main.py); this test exercises git/"
+    "update logic that guard now makes unreachable."
+)
 def test_cmd_update_force_bypasses_concurrent_check(_winp, tmp_path):
     """--force lets the update proceed past the concurrent-instance gate
     (subsequent steps are mocked so we only verify the gate is skipped)."""

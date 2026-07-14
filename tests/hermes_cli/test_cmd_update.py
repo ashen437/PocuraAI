@@ -156,6 +156,11 @@ class TestCmdUpdateTermuxUvBootstrap:
         mock_run.assert_not_called()
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo — see hermes_cli/main.py); this class exercises the "
+    "git branch-resolution logic that guard now makes unreachable."
+)
 class TestCmdUpdateBranchFallback:
     """cmd_update falls back to main when current branch has no remote counterpart."""
 
@@ -378,6 +383,11 @@ class TestCmdUpdateBranchFallback:
             assert "API keys require manual entry" in captured.out
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo — see hermes_cli/main.py); this class exercises the "
+    "git branch-resolution logic that guard now makes unreachable."
+)
 class TestCmdUpdateMigrationPrompt:
     """The config-migration prompt names what changed and skips the prompt
     entirely when only the config format version moved.
@@ -455,6 +465,11 @@ class TestCmdUpdateMigrationPrompt:
             assert "display.new_widget" in out
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo — see hermes_cli/main.py); this class exercises the "
+    "git branch-resolution logic that guard now makes unreachable."
+)
 class TestCmdUpdateProfileSkillSync:
     """cmd_update syncs bundled skills to all profiles, including the active one.
 
@@ -530,6 +545,11 @@ class TestCmdUpdateProfileSkillSync:
         assert default_p.path in synced_paths
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo — see hermes_cli/main.py); this class exercises the "
+    "git branch-resolution logic that guard now makes unreachable."
+)
 class TestCmdUpdateBranchFlag:
     """``hermes update --branch <name>`` targets the requested branch.
 
@@ -673,6 +693,11 @@ class TestCmdUpdateBranchFlag:
         assert "nonexistent" in out
 
 
+@pytest.mark.skip(
+    reason="cmd_update() is a no-op self-update-disabled guard for this build "
+    "(private source repo — see hermes_cli/main.py); this class exercises the "
+    "git branch-resolution logic that guard now makes unreachable."
+)
 class TestCmdUpdateCheckBranchFlag:
     """``hermes update --check --branch <name>`` honors the branch override.
 
@@ -837,6 +862,43 @@ class TestCmdUpdateZipBranchRefusal:
         assert "not supported" in out
         # No actual download attempted.
         assert "Downloading latest version" not in out
+
+
+class TestCmdUpdateDisabled:
+    """cmd_update() is a hard no-op — private source repo means there is no
+    anonymous git/pip path, so it must never touch git, pip, or the network,
+    in any mode (plain, --check, --gateway), and must exit cleanly (not
+    raise) so callers (the Rust installer's --update flow, the desktop's
+    macOS/Linux in-app update path, and manual `hermes update`) all see a
+    clean success rather than a failure that might retry into a prompt.
+    """
+
+    def test_plain_update_never_touches_git_or_pip(self, capsys):
+        with patch("subprocess.run") as mock_run:
+            cmd_update(SimpleNamespace())
+
+        mock_run.assert_not_called()
+        out = capsys.readouterr().out
+        assert "disabled" in out.lower()
+
+    def test_check_mode_never_touches_git(self, capsys):
+        with patch("subprocess.run") as mock_run:
+            cmd_update(SimpleNamespace(check=True, branch=None))
+
+        mock_run.assert_not_called()
+        out = capsys.readouterr().out
+        assert "disabled" in out.lower()
+
+    def test_gateway_mode_never_touches_git(self, capsys):
+        with patch("subprocess.run") as mock_run:
+            cmd_update(SimpleNamespace(gateway=True))
+
+        mock_run.assert_not_called()
+
+    def test_does_not_raise_or_exit(self):
+        # A SystemExit here would surface to the Rust installer as a failed
+        # stage; this must be a quiet, successful no-op instead.
+        cmd_update(SimpleNamespace())
 
 
 def test_is_termux_env_true_for_termux_prefix():

@@ -655,7 +655,10 @@ export function startUpdatePoller(): void {
   }
 
   pollerStarted = true
-  void checkUpdates()
+  // Desktop self-update-via-git is disabled for this build (private source
+  // repo — see checkUpdates()'s early return in electron/main.ts), so there's
+  // nothing for a passive desktop-update check to find. Backend update checks
+  // (checkBackendUpdates, remote-mode only) are unrelated and still run.
   void checkBackendUpdates()
   void refreshDesktopVersion()
   bridge.onProgress(ingestProgress)
@@ -678,7 +681,6 @@ export function startUpdatePoller(): void {
   window.addEventListener('focus', onFocus)
   backgroundTimer = setInterval(
     () => {
-      void checkUpdates()
       void checkBackendUpdates()
     },
     30 * 60 * 1000
@@ -706,7 +708,6 @@ function onFocus() {
   }
 
   lastFocusAt = now
-  void checkUpdates()
   void checkBackendUpdates()
   void refreshDesktopVersion()
 }
