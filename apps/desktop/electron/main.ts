@@ -3100,6 +3100,15 @@ function isPackagedInstallPath(dir) {
   })
 }
 
+// Suggested workspace folder shown by the first-run workspace picker
+// (WorkspaceSetupOverlay) and offered as its one-click default. A dedicated
+// subfolder rather than the bare home directory — dumping every uploaded/
+// created/edited file straight into %USERPROFILE% mixes agent output in with
+// unrelated Desktop/Documents/Downloads clutter.
+function suggestedWorkspaceDir() {
+  return path.join(app.getPath('home'), 'Pocura')
+}
+
 function resolveHermesCwd() {
   // In a packaged build, `process.cwd()` resolves to the install root (e.g.
   // `…/win-unpacked` on Windows or `/Applications/Pocura.app/Contents/...`
@@ -7562,6 +7571,7 @@ ipcMain.handle('hermes:openPreviewInBrowser', async (_event, url) => {
 ipcMain.handle('hermes:setting:defaultProjectDir:get', async () => ({
   dir: readDefaultProjectDir(),
   defaultLabel: app.getPath('home'),
+  suggestedDir: suggestedWorkspaceDir(),
   resolvedCwd: resolveHermesCwd()
 }))
 

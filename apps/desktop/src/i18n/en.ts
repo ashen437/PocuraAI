@@ -1882,6 +1882,17 @@ export const en: Translations = {
     reloadRetry: 'Reload and retry'
   },
 
+  workspaceSetup: {
+    title: 'Choose your workspace',
+    description:
+      'Files Pocura uploads, creates, or edits land here. Pick a folder now, or use the suggested one below — you can change it later in Settings.',
+    browse: 'Browse...',
+    useThis: 'Use this folder',
+    saving: 'Saving...',
+    errorTitle: 'Could not set workspace folder',
+    changeLater: 'You can change this anytime in Settings → Workspace.'
+  },
+
   onboarding: {
     headerTitle: "Let's get you setup with Pocura Agent",
     headerDesc: 'Connect a model provider to start chatting. Most options take one click.',
@@ -2266,7 +2277,7 @@ export const en: Translations = {
       reject: 'Reject',
       alwaysTitle: 'Always allow this command?',
       alwaysDescription: pattern =>
-        `This adds the “${pattern}” pattern to your permanent allowlist (~/.hermes/config.yaml). Pocura won’t ask again for commands like this — in this session or any future one.`,
+        `This adds the “${pattern}” pattern to your permanent allowlist (~/.pocura/config.yaml). Pocura won’t ask again for commands like this — in this session or any future one.`,
       alwaysAllow: 'Always allow'
     },
     clarify: {

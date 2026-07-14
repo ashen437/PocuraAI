@@ -9385,8 +9385,9 @@ def _(rid, params: dict) -> dict:
         return _err(rid, 5027, f"clipboard unavailable: {e}")
 
     session["image_counter"] = session.get("image_counter", 0) + 1
-    img_dir = _hermes_home / "images"
-    img_dir.mkdir(parents=True, exist_ok=True)
+    # Workspace attachment dir, not the global HERMES_HOME/images: a pasted
+    # screenshot has no original path either, same as image.attach_bytes.
+    img_dir = _desktop_attachment_dir(session)
     img_path = (
         img_dir
         / f"clip_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{session['image_counter']}.png"
@@ -9441,6 +9442,14 @@ def _(rid, params: dict) -> dict:
                 return _err(rid, 4016, f"image not found: {path_token}")
         if image_path.suffix.lower() not in _IMAGE_EXTENSIONS:
             return _err(rid, 4016, f"unsupported image: {image_path.name}")
+        # Stage into the session workspace like file.attach does: files already
+        # under the workspace are used as-is, anything outside (Desktop,
+        # Downloads, the OS home root, ...) gets copied in first. Without this
+        # an attached image just stays wherever the user dragged it from and
+        # never actually lives in the workspace the user picked.
+        image_path, _uploaded = _stage_session_file_attachment(
+            session, raw_path=str(image_path), data_url="", name=image_path.name
+        )
         session.setdefault("attached_images", []).append(str(image_path))
         return _ok(
             rid,
@@ -9526,15 +9535,20 @@ def _allowed_image_extensions() -> frozenset[str]:
 
 
 def _queue_attached_image(session: dict, img_bytes: bytes, ext: str, *, prefix: str) -> Path:
-    """Write image bytes into the gateway's images dir and queue them.
+    """Write image bytes into the session workspace and queue them.
 
     Mirrors what ``image.attach`` does for a local path: appends to
     ``session["attached_images"]`` so the next ``prompt.submit`` picks it up via
     the existing native-image-attach pipeline. Returns the written path.
+
+    Written into the session's own workspace attachment dir (same place
+    file.attach / image.attach stage outside-workspace files) rather than a
+    global HERMES_HOME/images dir — these bytes have no original path (clipboard
+    paste, remote-gateway upload), so the workspace is the only place they can
+    "live" the user actually chose.
     """
     session["image_counter"] = session.get("image_counter", 0) + 1
-    img_dir = _hermes_home / "images"
-    img_dir.mkdir(parents=True, exist_ok=True)
+    img_dir = _desktop_attachment_dir(session)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     img_path = img_dir / f"{prefix}_{ts}_{session['image_counter']}{ext}"
     try:
@@ -9766,7 +9780,7 @@ def _attachment_ref_path(session: dict, target: Path) -> str:
 
 
 def _desktop_attachment_dir(session: dict) -> Path:
-    root = Path(_session_cwd(session)).resolve() / ".hermes" / "desktop-attachments"
+    root = Path(_session_cwd(session)).resolve() / ".pocura" / "desktop-attachments"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -9957,6 +9971,12 @@ def _(rid, params: dict) -> dict:
         drop_path = dropped["path"]
         remainder = dropped["remainder"]
         if dropped["is_image"]:
+            # Same workspace-staging as image.attach — a path detected from
+            # pasted/typed text is just as likely to point outside the
+            # workspace as a drag-drop.
+            drop_path, _uploaded = _stage_session_file_attachment(
+                session, raw_path=str(drop_path), data_url="", name=drop_path.name
+            )
             session.setdefault("attached_images", []).append(str(drop_path))
             text = remainder or f"[User attached image: {drop_path.name}]"
             return _ok(

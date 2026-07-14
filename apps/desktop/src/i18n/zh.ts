@@ -2055,6 +2055,17 @@ export const zh: Translations = {
     reloadRetry: '重新加载并重试'
   },
 
+  workspaceSetup: {
+    title: 'Choose your workspace',
+    description:
+      'Files Pocura uploads, creates, or edits land here. Pick a folder now, or use the suggested one below — you can change it later in Settings.',
+    browse: 'Browse...',
+    useThis: 'Use this folder',
+    saving: 'Saving...',
+    errorTitle: 'Could not set workspace folder',
+    changeLater: 'You can change this anytime in Settings → Workspace.'
+  },
+
   onboarding: {
     headerTitle: '开始设置 Hermes Agent',
     headerDesc: '连接模型提供方即可开始对话。大多数选项只需一次点击。',

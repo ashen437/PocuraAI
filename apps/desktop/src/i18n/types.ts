@@ -1540,6 +1540,16 @@ export interface Translations {
     reloadRetry: string
   }
 
+  workspaceSetup: {
+    title: string
+    description: string
+    browse: string
+    useThis: string
+    saving: string
+    errorTitle: string
+    changeLater: string
+  }
+
   onboarding: {
     headerTitle: string
     headerDesc: string
