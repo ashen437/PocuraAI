@@ -1654,9 +1654,15 @@ def _register_session_cwd(session: dict | None) -> None:
     try:
         from tools.terminal_tool import register_task_env_overrides
 
-        register_task_env_overrides(
-            session["session_key"], {"cwd": _terminal_task_cwd(session)}
-        )
+        overrides = {"cwd": _terminal_task_cwd(session)}
+        # Desktop sessions started without an explicit, user-chosen workspace
+        # (no attached Project/worktree, no configured default project dir)
+        # must not let write tools silently land in whatever directory this
+        # cwd fell back to (see _completion_cwd). Flag it so file_tools can
+        # refuse writes instead of guessing a location the user never picked.
+        if _session_source(session) == "desktop" and not session.get("explicit_cwd"):
+            overrides["no_workspace"] = True
+        register_task_env_overrides(session["session_key"], overrides)
     except Exception:
         pass
 
@@ -9387,7 +9393,11 @@ def _(rid, params: dict) -> dict:
     session["image_counter"] = session.get("image_counter", 0) + 1
     # Workspace attachment dir, not the global HERMES_HOME/images: a pasted
     # screenshot has no original path either, same as image.attach_bytes.
-    img_dir = _desktop_attachment_dir(session)
+    try:
+        img_dir = _desktop_attachment_dir(session)
+    except Exception as e:
+        session["image_counter"] = max(0, session["image_counter"] - 1)
+        return _err(rid, 5027, str(e))
     img_path = (
         img_dir
         / f"clip_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{session['image_counter']}.png"
@@ -9780,6 +9790,11 @@ def _attachment_ref_path(session: dict, target: Path) -> str:
 
 
 def _desktop_attachment_dir(session: dict) -> Path:
+    if _session_source(session) == "desktop" and not session.get("explicit_cwd"):
+        raise RuntimeError(
+            "No workspace selected. Choose a project folder in Pocura before "
+            "attaching files -- files are not saved to a default location."
+        )
     root = Path(_session_cwd(session)).resolve() / ".pocura" / "desktop-attachments"
     root.mkdir(parents=True, exist_ok=True)
     return root

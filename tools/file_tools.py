@@ -630,6 +630,33 @@ def _get_hermes_config_resolved() -> str | None:
     return _hermes_config_resolved
 
 
+def _workspace_not_selected(task_id: str = "default") -> bool:
+    """True when this (Desktop) session has no user-chosen workspace.
+
+    Set by ``_register_session_cwd`` in tui_gateway/server.py for a Desktop
+    session started without an attached Project/worktree or configured
+    default project directory -- write tools must refuse rather than silently
+    resolve into whatever directory the cwd fallback chain landed on.
+    """
+    try:
+        from tools.terminal_tool import resolve_task_overrides
+
+        return bool(resolve_task_overrides(task_id).get("no_workspace"))
+    except Exception:
+        return False
+
+
+def _check_workspace_selected(task_id: str = "default") -> str | None:
+    """Return an error message when the session has no user-selected workspace."""
+    if _workspace_not_selected(task_id):
+        return (
+            "No workspace selected. Choose a project folder in Pocura before "
+            "creating or editing files -- files are not saved to a default "
+            "location."
+        )
+    return None
+
+
 def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None:
     """Return an error message if the path targets a sensitive system location."""
     try:
@@ -1646,6 +1673,9 @@ def write_file_tool(path: str, content: str, task_id: str = "default",
     Pass ``True`` after explicit user direction — same shape as ``force``
     on the terminal tool.
     """
+    workspace_err = _check_workspace_selected(task_id)
+    if workspace_err:
+        return tool_error(workspace_err)
     sensitive_err = _check_sensitive_path(path, task_id)
     if sensitive_err:
         return tool_error(sensitive_err)
@@ -1728,6 +1758,9 @@ def patch_tool(mode: str = "replace", path: str = None, old_string: str = None,
     targets under another profile's skills/plugins/cron/memories
     directory. Same shape as ``write_file``'s flag.
     """
+    workspace_err = _check_workspace_selected(task_id)
+    if workspace_err:
+        return tool_error(workspace_err)
     # Check sensitive paths for both replace (explicit path) and V4A patch (extract paths)
     _paths_to_check = []
     if path:
