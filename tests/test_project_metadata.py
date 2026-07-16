@@ -197,6 +197,58 @@ def test_dev_extra_excluded_from_all():
     )
 
 
+def _document_lib_specs_from_pyproject():
+    return set(_load_optional_dependencies()["documents"])
+
+
+def _installer_specs(path: Path, pattern: str):
+    import re
+
+    return set(re.findall(pattern, path.read_text(encoding="utf-8")))
+
+
+def test_documents_extra_excluded_from_all():
+    """The [documents] extra is installed by the installer's `document-libs`
+    stage (Install-DocumentLibs / install_document_libs), NOT via [all].
+
+    Same rationale as [matrix]/[dev]: [all] feeds `uv sync --locked`, so one
+    quarantined release among these 13 third-party libs would break every
+    fresh install. The stage installs them one at a time and treats a failure
+    as a warning, because tools/read_extract.py imports each lazily and falls
+    back to another extractor.
+    """
+    optional_dependencies = _load_optional_dependencies()
+
+    assert "documents" in optional_dependencies, (
+        "[documents] extra must exist for `pip install hermes-agent[documents]` and packagers"
+    )
+    assert not any("documents" in dep for dep in optional_dependencies["all"])
+
+
+def test_installer_document_libs_match_pyproject():
+    """install.ps1 / install.sh hardcode the [documents] pins so they can probe
+    and install each library individually. Nothing at runtime reconciles those
+    three lists, so drift is silent: the installer would happily install a
+    version pyproject no longer declares. Pin them together here.
+    """
+    repo = Path(__file__).resolve().parents[1]
+    expected = _document_lib_specs_from_pyproject()
+
+    # PowerShell: Spec = "pkg==1.2.3"
+    ps1 = _installer_specs(repo / "scripts" / "install.ps1", r'Spec\s*=\s*"([^"]+==[^"]+)"')
+    # Bash: "import_name pkg==1.2.3|Label"
+    sh = _installer_specs(repo / "scripts" / "install.sh", r'"[\w.]+ ([^ |]+==[^|]+)\|')
+
+    assert expected <= ps1, f"install.ps1 is missing/stale for: {sorted(expected - ps1)}"
+    assert expected <= sh, f"install.sh is missing/stale for: {sorted(expected - sh)}"
+
+    # And nothing extra in the installers' document tables that pyproject
+    # doesn't declare (guards the reverse drift).
+    ps1_docs = {s for s in ps1 if s.split("==")[0].lower() in {e.split("==")[0].lower() for e in expected}}
+    assert ps1_docs <= expected, f"install.ps1 pins differ from pyproject: {sorted(ps1_docs - expected)}"
+    assert sh <= expected, f"install.sh pins differ from pyproject: {sorted(sh - expected)}"
+
+
 def test_messaging_extra_includes_qrcode_for_weixin_setup():
     optional_dependencies = _load_optional_dependencies()
 

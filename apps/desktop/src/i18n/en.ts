@@ -1477,12 +1477,34 @@ export const en: Translations = {
     copyPath: 'Copy path'
   },
 
+  tenderAnalyze: {
+    title: 'Tender Analyze',
+    subtitle: 'Drop tender documents and ask a question. Pocura reads PDFs, scanned PDFs, Word, PowerPoint, Excel, images and more.',
+    dropTitle: 'Drop files here',
+    dropHint: 'PDF, scanned PDF, Word, PowerPoint, Excel, images, email, text — or click to browse',
+    browse: 'Choose files',
+    questionLabel: 'Your question',
+    questionPlaceholder: 'e.g. What is the submission deadline and which documents are mandatory?',
+    analyze: 'Analyze',
+    analyzing: 'Analyzing…',
+    clear: 'Clear all',
+    remove: name => `Remove ${name}`,
+    fileCount: count => (count === 1 ? '1 file' : `${count} files`),
+    noWorkspaceTitle: 'Choose a workspace first',
+    noWorkspaceDesc:
+      'Tender Analyze saves the documents you upload into your workspace folder. Pick one in Settings, or open a project, then come back.',
+    chooseWorkspace: 'Open settings',
+    errorTitle: 'Analysis failed',
+    uploadFailed: name => `Could not upload ${name}`
+  },
+
   sidebar: {
     nav: {
       'new-session': 'New session',
       skills: 'Capabilities',
       messaging: 'Messaging',
-      artifacts: 'Artifacts'
+      artifacts: 'Artifacts',
+      'tender-analyze': 'Tender Analyze'
     },
     searchAria: 'Search sessions',
     searchPlaceholder: 'Search sessions…',

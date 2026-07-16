@@ -320,7 +320,7 @@ emit_manifest() {
     if [ "$INCLUDE_DESKTOP" = true ]; then
         desktop_stage='{"name":"desktop","title":"Build desktop app","category":"runtime","needs_user_input":false},'
     fi
-    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Pocura Agent","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"path","title":"Add Pocura to PATH","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
+    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Pocura Agent","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"document-libs","title":"Install document and OCR libraries","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"path","title":"Add Pocura to PATH","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
     printf '\n'
 }
 
@@ -981,8 +981,10 @@ install_system_packages() {
     # Detect what's missing
     HAS_RIPGREP=false
     HAS_FFMPEG=false
+    HAS_TESSERACT=false
     local need_ripgrep=false
     local need_ffmpeg=false
+    local need_tesseract=false
 
     log_info "Checking ripgrep (fast file search)..."
     if command -v rg &> /dev/null; then
@@ -1001,6 +1003,14 @@ install_system_packages() {
         need_ffmpeg=true
     fi
 
+    log_info "Checking tesseract (OCR for images/scanned PDFs)..."
+    if command -v tesseract &> /dev/null; then
+        log_success "tesseract found"
+        HAS_TESSERACT=true
+    else
+        need_tesseract=true
+    fi
+
     # Termux always needs the Android build toolchain for the tested pip path,
     # even when ripgrep/ffmpeg are already present.
     if [ "$DISTRO" = "termux" ]; then
@@ -1011,11 +1021,15 @@ install_system_packages() {
         if [ "$need_ffmpeg" = true ]; then
             termux_pkgs+=("ffmpeg")
         fi
+        if [ "$need_tesseract" = true ]; then
+            termux_pkgs+=("tesseract")
+        fi
 
         log_info "Installing Termux packages: ${termux_pkgs[*]}"
         if pkg install -y "${termux_pkgs[@]}" >/dev/null; then
-            [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-            [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+            [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+            [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+            [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
             log_success "Termux build dependencies installed"
             return 0
         fi
@@ -1026,20 +1040,32 @@ install_system_packages() {
     fi
 
     # Nothing to install — done
-    if [ "$need_ripgrep" = false ] && [ "$need_ffmpeg" = false ]; then
+    if [ "$need_ripgrep" = false ] && [ "$need_ffmpeg" = false ] && [ "$need_tesseract" = false ]; then
         return 0
     fi
 
-    # Build a human-readable description + package list
+    # Build a human-readable description + package list. `pkgs` is used by
+    # brew/dnf/pacman, whose tesseract package is named "tesseract" like
+    # everywhere else; `pkgs_apt` mirrors it but swaps in apt's differently
+    # named "tesseract-ocr" (ripgrep/ffmpeg happen to share names on every
+    # manager, so this split was never needed until now).
     local desc_parts=()
     local pkgs=()
+    local pkgs_apt=()
     if [ "$need_ripgrep" = true ]; then
         desc_parts+=("ripgrep for faster file search")
         pkgs+=("ripgrep")
+        pkgs_apt+=("ripgrep")
     fi
     if [ "$need_ffmpeg" = true ]; then
         desc_parts+=("ffmpeg for TTS voice messages")
         pkgs+=("ffmpeg")
+        pkgs_apt+=("ffmpeg")
+    fi
+    if [ "$need_tesseract" = true ]; then
+        desc_parts+=("tesseract for OCR (images/scanned PDFs)")
+        pkgs+=("tesseract")
+        pkgs_apt+=("tesseract-ocr")
     fi
     local description
     description=$(IFS=" and "; echo "${desc_parts[*]}")
@@ -1049,8 +1075,9 @@ install_system_packages() {
         if command -v brew &> /dev/null; then
             log_info "Installing ${pkgs[*]} via Homebrew..."
             if brew install "${pkgs[@]}"; then
-                [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-                [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+                [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+                [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+                [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
                 return 0
             fi
         fi
@@ -1061,14 +1088,15 @@ install_system_packages() {
 
     # ── Linux: resolve package manager command ──
     local pkg_install=""
+    local install_pkgs=("${pkgs[@]}")
     case "$DISTRO" in
-        ubuntu|debian) pkg_install="apt install -y"   ;;
+        ubuntu|debian) pkg_install="apt install -y"   ; install_pkgs=("${pkgs_apt[@]}") ;;
         fedora)        pkg_install="dnf install -y"   ;;
         arch)          pkg_install="pacman -S --noconfirm" ;;
     esac
 
     if [ -n "$pkg_install" ]; then
-        local install_cmd="$pkg_install ${pkgs[*]}"
+        local install_cmd="$pkg_install ${install_pkgs[*]}"
 
         # Prevent needrestart/whiptail dialogs from blocking non-interactive installs
         case "$DISTRO" in
@@ -1077,18 +1105,20 @@ install_system_packages() {
 
         # Already root — just install
         if [ "$(id -u)" -eq 0 ]; then
-            log_info "Installing ${pkgs[*]}..."
+            log_info "Installing ${install_pkgs[*]}..."
             if $install_cmd; then
-                [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-                [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+                [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+                [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+                [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
                 return 0
             fi
         # Passwordless sudo — just install
         elif command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
-            log_info "Installing ${pkgs[*]}..."
+            log_info "Installing ${install_pkgs[*]}..."
             if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a $install_cmd; then
-                [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-                [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+                [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+                [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+                [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
                 return 0
             fi
         # sudo needs password — ask once for everything
@@ -1099,8 +1129,9 @@ install_system_packages() {
                 log_info "Hermes Agent itself does not require or retain root access."
                 if prompt_yes_no "Install ${description}? (requires sudo)" "no"; then
                     if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a $install_cmd; then
-                        [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-                        [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+                        [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+                        [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+                        [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
                         return 0
                     fi
                 fi
@@ -1115,8 +1146,9 @@ install_system_packages() {
                 log_info "Hermes Agent itself does not require or retain root access."
                 if prompt_yes_no "Install ${description}?" "yes"; then
                     if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a $install_cmd < /dev/tty; then
-                        [ "$need_ripgrep" = true ] && HAS_RIPGREP=true && log_success "ripgrep installed"
-                        [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
+                        [ "$need_ripgrep" = true ]   && HAS_RIPGREP=true   && log_success "ripgrep installed"
+                        [ "$need_ffmpeg" = true ]    && HAS_FFMPEG=true    && log_success "ffmpeg installed"
+                        [ "$need_tesseract" = true ] && HAS_TESSERACT=true && log_success "tesseract installed"
                         return 0
                     fi
                 fi
@@ -1147,15 +1179,22 @@ install_system_packages() {
         log_warn "ffmpeg not installed (TTS voice messages will be limited)"
         show_manual_install_hint "ffmpeg"
     fi
+    if [ "$HAS_TESSERACT" = false ] && [ "$need_tesseract" = true ]; then
+        log_warn "tesseract not installed (OCR for images/scanned PDFs will be unavailable)"
+        show_manual_install_hint "tesseract" "tesseract-ocr"
+    fi
 }
 
 show_manual_install_hint() {
     local pkg="$1"
+    # Optional second arg: apt's package name when it differs from everyone
+    # else's (tesseract-ocr vs tesseract; ripgrep/ffmpeg never needed this).
+    local apt_pkg="${2:-$pkg}"
     log_info "To install $pkg manually:"
     case "$OS" in
         linux)
             case "$DISTRO" in
-                ubuntu|debian) log_info "  sudo apt install $pkg" ;;
+                ubuntu|debian) log_info "  sudo apt install $apt_pkg" ;;
                 fedora)        log_info "  sudo dnf install $pkg" ;;
                 arch)          log_info "  sudo pacman -S $pkg"   ;;
                 *)             log_info "  Use your package manager or visit the project homepage" ;;
@@ -1595,6 +1634,100 @@ PY
     log_success "Main package installed"
 
     log_success "All dependencies installed"
+}
+
+# Document-extraction / OCR libraries backing tools/read_extract.py (the
+# read_file document path and the desktop "Tender Analyze" batch Q&A view).
+# Mirrors Install-DocumentLibs in install.ps1 -- keep the two lists in sync
+# with each other and with pyproject.toml's [documents] extra.
+#
+# These are deliberately NOT in [all] (see the policy comment on `all` in
+# pyproject.toml), so this is their only installer. A single library failing is
+# a WARNING, never a stage failure: read_extract.py imports each lazily and
+# falls back to another extractor, so a partial install still works -- just
+# with fewer fallbacks.
+#
+# "import_name pip_spec|label" -- import name first so the probe is a plain
+# field split, no arrays-of-maps gymnastics in bash.
+DOCUMENT_LIBS=(
+    "rapidocr_onnxruntime rapidocr-onnxruntime==1.2.3|RapidOCR (second OCR engine)"
+    "pdfplumber pdfplumber==0.11.10|pdfplumber (PDF tables/layout)"
+    "opendataloader_pdf opendataloader-pdf==2.5.0|opendataloader-pdf (structured PDF; needs Java)"
+    "docx python-docx==1.2.0|python-docx (Word fallback)"
+    "pptx python-pptx==1.0.2|python-pptx (PowerPoint fallback)"
+    "openpyxl openpyxl==3.1.5|openpyxl (Excel fallback)"
+    "odf odfpy==1.4.1|odfpy (OpenDocument fallback)"
+    "striprtf striprtf==0.0.32|striprtf (RTF fallback)"
+    "olefile olefile==0.47|olefile (legacy .doc)"
+    "extract_msg extract-msg==0.55.0|extract-msg (Outlook .msg)"
+    "ebooklib ebooklib==0.20|ebooklib (.epub)"
+    "bs4 beautifulsoup4==4.13.5|beautifulsoup4 (HTML)"
+    "lxml lxml==6.1.1|lxml (HTML parser backend)"
+)
+
+install_document_libs() {
+    local py="$INSTALL_DIR/venv/bin/python"
+    if [ "$USE_VENV" != true ] || [ ! -x "$py" ]; then
+        py="$(command -v python3 || command -v python || echo "")"
+    fi
+    if [ -z "$py" ] || [ ! -x "$py" ]; then
+        log_warn "Skipping document libraries: no Python interpreter found"
+        return 0
+    fi
+
+    log_info "Checking document extraction / OCR libraries..."
+
+    local missing=()
+    local entry import_name spec label rest
+    for entry in "${DOCUMENT_LIBS[@]}"; do
+        import_name="${entry%% *}"
+        rest="${entry#* }"
+        spec="${rest%%|*}"
+        label="${rest#*|}"
+        if "$py" -c "import $import_name" >/dev/null 2>&1; then
+            log_success "  $label -- already installed"
+        else
+            log_info "  $label -- not installed"
+            missing+=("$spec|$label")
+        fi
+    done
+
+    if [ ${#missing[@]} -eq 0 ]; then
+        log_success "All document libraries present"
+        return 0
+    fi
+
+    # uv creates venvs without pip; ensurepip is the stdlib-blessed fix.
+    if ! "$py" -m pip --version >/dev/null 2>&1; then
+        log_info "Bootstrapping pip into venv (uv doesn't ship pip)..."
+        if ! "$py" -m ensurepip --upgrade >/dev/null 2>&1; then
+            log_warn "ensurepip failed -- skipping document libraries."
+            log_info "Manual recovery: $UV_CMD pip install -e '$INSTALL_DIR'[documents]"
+            return 0
+        fi
+    fi
+
+    for entry in "${missing[@]}"; do
+        spec="${entry%%|*}"
+        label="${entry#*|}"
+        log_info "  Installing $label ..."
+        if "$py" -m pip install "$spec"; then
+            log_success "  Installed $label"
+        else
+            # Deliberately not fatal -- one unavailable library costs a
+            # fallback, not the feature.
+            log_warn "  Could not install $spec; Pocura will use its other extractors."
+        fi
+    done
+
+    if ! command -v java &> /dev/null; then
+        # opendataloader-pdf wraps a Java CLI. We install the wheel regardless
+        # (it's small) but never install a JRE; read_extract.py probes for
+        # `java` and skips that extractor when it's absent.
+        log_info "Java not found -- opendataloader-pdf will stay inactive (other PDF extractors are unaffected)."
+    fi
+
+    return 0
 }
 
 setup_path() {
@@ -2981,6 +3114,14 @@ run_stage_body() {
             install_uv
             check_python
             install_deps
+            ;;
+        document-libs)
+            detect_os
+            resolve_install_layout
+            require_install_dir
+            install_uv
+            check_python
+            install_document_libs
             ;;
         node-deps)
             detect_os

@@ -1105,8 +1105,10 @@ function Update-ProcessPathForPackages {
 function Install-SystemPackages {
     $script:HasRipgrep = $false
     $script:HasFfmpeg = $false
+    $script:HasTesseract = $false
     $needRipgrep = $false
     $needFfmpeg = $false
+    $needTesseract = $false
 
     Write-Info "Checking ripgrep (fast file search)..."
     if (Get-Command rg -ErrorAction SilentlyContinue) {
@@ -1125,7 +1127,15 @@ function Install-SystemPackages {
         $needFfmpeg = $true
     }
 
-    if (-not $needRipgrep -and -not $needFfmpeg) { return }
+    Write-Info "Checking tesseract (OCR for images/scanned PDFs)..."
+    if (Get-Command tesseract -ErrorAction SilentlyContinue) {
+        Write-Success "tesseract found"
+        $script:HasTesseract = $true
+    } else {
+        $needTesseract = $true
+    }
+
+    if (-not $needRipgrep -and -not $needFfmpeg -and -not $needTesseract) { return }
 
     # Build description and package lists for each package manager
     $descParts = @()
@@ -1144,6 +1154,12 @@ function Install-SystemPackages {
         $wingetPkgs += "Gyan.FFmpeg"
         $chocoPkgs += "ffmpeg"
         $scoopPkgs += "ffmpeg"
+    }
+    if ($needTesseract) {
+        $descParts += "tesseract for OCR (images/scanned PDFs)"
+        $wingetPkgs += "UB-Mannheim.TesseractOCR"
+        $chocoPkgs += "tesseract"
+        $scoopPkgs += "tesseract"
     }
 
     $description = $descParts -join " and "
@@ -1214,11 +1230,19 @@ function Install-SystemPackages {
         } elseif ($pkgLogs.ContainsKey("Gyan.FFmpeg")) {
             Write-Warn "winget could not install ffmpeg; details: $($pkgLogs['Gyan.FFmpeg'])"
         }
-        if (-not $needRipgrep -and -not $needFfmpeg) { return }
+        if ($needTesseract -and (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+            Write-Success "tesseract installed"
+            $script:HasTesseract = $true
+            $needTesseract = $false
+            Remove-Item -Path $pkgLogs["UB-Mannheim.TesseractOCR"] -ErrorAction SilentlyContinue
+        } elseif ($pkgLogs.ContainsKey("UB-Mannheim.TesseractOCR")) {
+            Write-Warn "winget could not install tesseract; details: $($pkgLogs['UB-Mannheim.TesseractOCR'])"
+        }
+        if (-not $needRipgrep -and -not $needFfmpeg -and -not $needTesseract) { return }
     }
 
     # Fallback: choco
-    if ($hasChoco -and ($needRipgrep -or $needFfmpeg)) {
+    if ($hasChoco -and ($needRipgrep -or $needFfmpeg -or $needTesseract)) {
         Write-Info "Trying Chocolatey..."
         foreach ($pkg in $chocoPkgs) {
             try { choco install $pkg -y 2>&1 | Out-Null } catch { }
@@ -1234,10 +1258,15 @@ function Install-SystemPackages {
             $script:HasFfmpeg = $true
             $needFfmpeg = $false
         }
+        if ($needTesseract -and (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+            Write-Success "tesseract installed via chocolatey"
+            $script:HasTesseract = $true
+            $needTesseract = $false
+        }
     }
 
     # Fallback: scoop
-    if ($hasScoop -and ($needRipgrep -or $needFfmpeg)) {
+    if ($hasScoop -and ($needRipgrep -or $needFfmpeg -or $needTesseract)) {
         Write-Info "Trying Scoop..."
         foreach ($pkg in $scoopPkgs) {
             try { scoop install $pkg 2>&1 | Out-Null } catch { }
@@ -1253,6 +1282,11 @@ function Install-SystemPackages {
             $script:HasFfmpeg = $true
             $needFfmpeg = $false
         }
+        if ($needTesseract -and (Get-Command tesseract -ErrorAction SilentlyContinue)) {
+            Write-Success "tesseract installed via scoop"
+            $script:HasTesseract = $true
+            $needTesseract = $false
+        }
     }
 
     # Show manual instructions for anything still missing
@@ -1263,6 +1297,10 @@ function Install-SystemPackages {
     if ($needFfmpeg) {
         Write-Warn "ffmpeg not installed (TTS voice messages will be limited)"
         Write-Info "  winget install Gyan.FFmpeg"
+    }
+    if ($needTesseract) {
+        Write-Warn "tesseract not installed (OCR for images/scanned PDFs will be unavailable)"
+        Write-Info "  winget install UB-Mannheim.TesseractOCR"
     }
 }
 
@@ -3031,6 +3069,111 @@ function Install-PlatformSdks {
     }
 }
 
+# Document-extraction / OCR libraries backing tools/read_extract.py (the
+# read_file document path and the desktop "Tender Analyze" batch Q&A view).
+#
+# These live in pyproject.toml's [documents] extra but are deliberately NOT in
+# [all] -- see the policy comment on `all`: anything whose PyPI availability
+# could break a fresh install stays out of the main resolve. So this stage is
+# their only installer. It mirrors Install-PlatformSdks: probe each import,
+# install just the missing ones, and -- critically -- treat a single library
+# failing as a WARNING, never a stage failure. read_extract.py imports each of
+# these lazily and falls back to another extractor when one is absent, so a
+# partial install is still a working install with fewer fallbacks.
+#
+# Keep $libMap specs in sync with pyproject.toml's [documents] extra.
+$DocumentLibs = @(
+    @{ Import = "rapidocr_onnxruntime"; Spec = "rapidocr-onnxruntime==1.2.3"; Label = "RapidOCR (second OCR engine)" }
+    @{ Import = "pdfplumber";           Spec = "pdfplumber==0.11.10";         Label = "pdfplumber (PDF tables/layout)" }
+    @{ Import = "opendataloader_pdf";   Spec = "opendataloader-pdf==2.5.0";   Label = "opendataloader-pdf (structured PDF; needs Java)" }
+    @{ Import = "docx";                 Spec = "python-docx==1.2.0";          Label = "python-docx (Word fallback)" }
+    @{ Import = "pptx";                 Spec = "python-pptx==1.0.2";          Label = "python-pptx (PowerPoint fallback)" }
+    @{ Import = "openpyxl";             Spec = "openpyxl==3.1.5";             Label = "openpyxl (Excel fallback)" }
+    @{ Import = "odf";                  Spec = "odfpy==1.4.1";                Label = "odfpy (OpenDocument fallback)" }
+    @{ Import = "striprtf";             Spec = "striprtf==0.0.32";            Label = "striprtf (RTF fallback)" }
+    @{ Import = "olefile";              Spec = "olefile==0.47";               Label = "olefile (legacy .doc)" }
+    @{ Import = "extract_msg";          Spec = "extract-msg==0.55.0";         Label = "extract-msg (Outlook .msg)" }
+    @{ Import = "ebooklib";             Spec = "ebooklib==0.20";              Label = "ebooklib (.epub)" }
+    @{ Import = "bs4";                  Spec = "beautifulsoup4==4.13.5";      Label = "beautifulsoup4 (HTML)" }
+    @{ Import = "lxml";                 Spec = "lxml==6.1.1";                 Label = "lxml (HTML parser backend)" }
+)
+
+function Install-DocumentLibs {
+    if ($NoVenv) {
+        Write-Info "Skipping document libraries (-NoVenv: no venv to install into)"
+        return
+    }
+
+    $pythonExe = "$InstallDir\venv\Scripts\python.exe"
+    if (-not (Test-Path $pythonExe)) {
+        Write-Warn "Skipping document libraries: $pythonExe not found"
+        return
+    }
+
+    Write-Info "Checking document extraction / OCR libraries..."
+
+    # Same NativeCommandError quirk as Install-PlatformSdks: save + restore EAP
+    # around the import probes rather than nuking it globally.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    $missing = @()
+    try {
+        foreach ($lib in $DocumentLibs) {
+            & $pythonExe -c "import $($lib.Import)" 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Info "  $($lib.Label) -- not installed"
+                $missing += $lib
+            } else {
+                Write-Success "  $($lib.Label) -- already installed"
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+
+    if ($missing.Count -eq 0) {
+        Write-Success "All document libraries present"
+        return
+    }
+
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        # uv creates venvs without pip; ensurepip is the stdlib-blessed fix.
+        & $pythonExe -m pip --version 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Info "Bootstrapping pip into venv (uv doesn't ship pip)..."
+            & $pythonExe -m ensurepip --upgrade 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "ensurepip failed -- skipping document libraries."
+                Write-Info "Manual recovery: $UvCmd pip install `"$InstallDir`"[documents]"
+                return
+            }
+        }
+
+        foreach ($lib in $missing) {
+            Write-Info "  Installing $($lib.Label) ..."
+            & $pythonExe -m pip install $lib.Spec 2>&1 | ForEach-Object { Write-Host "    $_" }
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "  Installed $($lib.Label)"
+            } else {
+                # Deliberately not fatal -- one unavailable library costs a
+                # fallback, not the feature.
+                Write-Warn "  Could not install $($lib.Spec); Pocura will use its other extractors."
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+
+    if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+        # opendataloader-pdf is a wrapper around a Java CLI. We install the
+        # wheel regardless (it's small) but never install a JRE; read_extract.py
+        # probes for `java` and skips that extractor when it's absent.
+        Write-Info "Java not found -- opendataloader-pdf will stay inactive (other PDF extractors are unaffected)."
+    }
+}
+
 function Invoke-SetupWizard {
     if ($SkipSetup) {
         Write-Info "Skipping setup wizard (-SkipSetup)"
@@ -3274,7 +3417,7 @@ $InstallStages = @(
     @{ Name = "python";           Title = "Verifying Python $PythonVersion";      Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Python" }
     @{ Name = "git";              Title = "Installing Git";                       Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Git" }
     @{ Name = "node";             Title = "Detecting Node.js";                    Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Node" }
-    @{ Name = "system-packages";  Title = "Installing ripgrep and ffmpeg";        Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-SystemPackages" }
+    @{ Name = "system-packages";  Title = "Installing ripgrep, ffmpeg and tesseract"; Category = "prereqs";  NeedsUserInput = $false; Worker = "Stage-SystemPackages" }
     @{ Name = "repository";       Title = "Cloning Pocura repository";            Category = "install";      NeedsUserInput = $false; Worker = "Stage-Repository" }
     @{ Name = "venv";             Title = "Creating Python virtual environment";  Category = "install";      NeedsUserInput = $false; Worker = "Stage-Venv" }
     @{ Name = "dependencies";     Title = "Installing Python dependencies";       Category = "install";      NeedsUserInput = $false; Worker = "Stage-Dependencies" }
@@ -3290,6 +3433,7 @@ $InstallStages += @(
     @{ Name = "path";             Title = "Adding Pocura to PATH";                Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-Path" }
     @{ Name = "config-templates"; Title = "Writing configuration templates";      Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-ConfigTemplates" }
     @{ Name = "platform-sdks";    Title = "Installing messaging platform SDKs";   Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-PlatformSdks" }
+    @{ Name = "document-libs";    Title = "Installing document and OCR libraries"; Category = "finalize";    NeedsUserInput = $false; Worker = "Stage-DocumentLibs" }
     @{ Name = "bootstrap-marker"; Title = "Marking install complete";              Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-BootstrapMarker" }
     # Interactive stages.  In non-interactive mode these become no-ops; the
     # caller (GUI / CI) handles the equivalent UX themselves.
@@ -3331,6 +3475,7 @@ function Stage-Desktop          { Install-Desktop }
 function Stage-Path             { Set-PathVariable }
 function Stage-ConfigTemplates  { Copy-ConfigTemplates }
 function Stage-PlatformSdks     { Resolve-UvCmd; Install-PlatformSdks }
+function Stage-DocumentLibs     { Resolve-UvCmd; Install-DocumentLibs }
 function Stage-BootstrapMarker  { Write-BootstrapMarker }
 function Stage-Configure        { Invoke-SetupWizard }
 function Stage-Gateway          { Start-GatewayIfConfigured }

@@ -124,6 +124,19 @@ dependencies = [
   # install rather than gating it behind an extra + a mid-session lazy install
   # (which deadlocked the CLI under prompt_toolkit — see #40490).
   "Pillow==12.2.0",
+  # PDF text-layer extraction + page rasterization for OCR fallback on
+  # scanned PDFs (tools/read_extract.py). Pure wheel, bundles its own MuPDF
+  # — no system library required.
+  "PyMuPDF==1.27.2.2",
+  # Lightweight pure-Python fallback PDF parser (tools/read_extract.py):
+  # tried when PyMuPDF fails to open a PDF (odd xref table, an
+  # encrypted-but-permissive file, ...). Text layer only, no OCR/rendering
+  # of its own — small dependency, no native extension.
+  "pypdf==6.14.2",
+  # Thin subprocess wrapper around the `tesseract` binary that
+  # scripts/install.ps1 / install.sh provision — no native extension of its
+  # own. Used by tools/read_extract.py for images and scanned PDF pages.
+  "pytesseract==0.3.13",
   # Windows log rotation. Stdlib ``RotatingFileHandler.doRollover()`` uses
   # ``os.rename()`` which fails with ``PermissionError [WinError 32]`` on
   # Windows whenever any other process holds an append-mode handle on
@@ -170,6 +183,47 @@ matrix = ["mautrix[encryption]==0.21.0", "aiosqlite==0.22.1", "asyncpg==0.31.0",
 wecom = ["defusedxml==0.7.1"]
 cli = ["simple-term-menu==1.6.6"]
 tts-premium = ["elevenlabs==1.59.0"]
+# Document extraction / OCR fallbacks for tools/read_extract.py (the read_file
+# document path, and the desktop "Tender Analyze" batch Q&A workflow).
+#
+# Deliberately NOT in [all]: that list's policy (see the comment on `all`
+# below) is to keep out anything whose PyPI availability could break a fresh
+# install. 13 third-party libs is exactly that risk. Instead the installer's
+# `document-libs` stage (Install-DocumentLibs in scripts/install.ps1 /
+# install_document_libs in install.sh) probes each import and pip-installs only
+# what's missing, so one bad release degrades a single extractor instead of
+# failing setup. Every consumer in read_extract.py imports lazily and raises
+# ExtractionError when a lib is absent, so a partial install stays correct --
+# just with fewer fallbacks.
+documents = [
+  # OCR engine #2, tried when tesseract is missing or returns nothing.
+  # ONNX-based on purpose: EasyOCR/PaddleOCR would drag in PyTorch (GBs).
+  "rapidocr-onnxruntime==1.2.3",
+  # PDF text layer: layout/table-aware, and a structured parser. PyMuPDF and
+  # pypdf are core deps (see `dependencies`); these extend the fallback chain.
+  "pdfplumber==0.11.10",
+  # Python wrapper over a Java CLI -- needs a JRE 11+, which we deliberately do
+  # NOT install. read_extract.py probes for a JVM and skips it when absent.
+  "opendataloader-pdf==2.5.0",
+  # OOXML/ODF fallbacks. read_extract.py parses these with the stdlib first
+  # (no dependency); these recover what the hand-rolled parsers miss -- tables,
+  # text boxes, charts, odd encodings.
+  "python-docx==1.2.0",
+  "python-pptx==1.0.2",
+  "openpyxl==3.1.5",
+  "odfpy==1.4.1",
+  "striprtf==0.0.32",
+  # Real OLE2 stream parsing for legacy binary .doc, instead of the lossy
+  # printable-run byte scrape read_extract.py falls back to.
+  "olefile==0.47",
+  # Formats with no support at all before this extra.
+  "extract-msg==0.55.0",
+  "ebooklib==0.20",
+  # Capped at <4.14 by extract-msg 0.55.0, so this cannot simply track latest
+  # (4.15.x) while extract-msg is in this extra -- pip hard-fails the resolve.
+  "beautifulsoup4==4.13.5",
+  "lxml==6.1.1",
+]
 voice = [
   # Local STT pulls in wheel-only transitive deps (ctranslate2, onnxruntime),
   # so keep it out of the base install for source-build packagers like Homebrew.

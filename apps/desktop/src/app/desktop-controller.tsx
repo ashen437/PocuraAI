@@ -136,6 +136,7 @@ const StarmapView = lazy(async () => ({ default: (await import('./starmap')).Sta
 const MessagingView = lazy(async () => ({ default: (await import('./messaging')).MessagingView }))
 const ProfilesView = lazy(async () => ({ default: (await import('./profiles')).ProfilesView }))
 const SettingsView = lazy(async () => ({ default: (await import('./settings')).SettingsView }))
+const TenderAnalyzeView = lazy(async () => ({ default: (await import('./tender-analyze')).TenderAnalyzeView }))
 const SkillsView = lazy(async () => ({ default: (await import('./skills')).SkillsView }))
 
 // Latest cron-job sessions surfaced in the collapsed "Cron jobs" section. The
@@ -1338,6 +1339,14 @@ export function DesktopController() {
               </Suspense>
             }
             path="artifacts"
+          />
+          <Route
+            element={
+              <Suspense fallback={null}>
+                <TenderAnalyzeView setStatusbarItemGroup={setStatusbarItemGroup} />
+              </Suspense>
+            }
+            path="tender-analyze"
           />
           <Route element={null} path="cron" />
           <Route element={null} path="profiles" />

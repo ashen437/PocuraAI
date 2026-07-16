@@ -1215,6 +1215,26 @@ export interface Translations {
     copyPath: string
   }
 
+  tenderAnalyze: {
+    title: string
+    subtitle: string
+    dropTitle: string
+    dropHint: string
+    browse: string
+    questionLabel: string
+    questionPlaceholder: string
+    analyze: string
+    analyzing: string
+    clear: string
+    remove: (name: string) => string
+    fileCount: (count: number) => string
+    noWorkspaceTitle: string
+    noWorkspaceDesc: string
+    chooseWorkspace: string
+    errorTitle: string
+    uploadFailed: (name: string) => string
+  }
+
   sidebar: {
     nav: Record<string, string>
     searchAria: string

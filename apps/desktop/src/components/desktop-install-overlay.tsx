@@ -53,6 +53,10 @@ interface StageRowProps {
   descriptor: DesktopBootstrapStageDescriptor
   result: DesktopBootstrapStageResult | undefined
   now: number
+  /** Latest installer output line, for the running stage only. Long stages
+   * (dependencies, document-libs) otherwise sit on a bare spinner for minutes
+   * while the per-item detail is buried in the collapsed log panel. */
+  activity?: null | string
 }
 
 function formatStageName(name: string): string {
@@ -101,7 +105,7 @@ function formatElapsed(ms: number): string {
   return `${m}:${String(s - m * 60).padStart(2, '0')}`
 }
 
-function StageRow({ descriptor, result, now }: StageRowProps) {
+function StageRow({ activity, descriptor, result, now }: StageRowProps) {
   const { t } = useI18n()
   const copy = t.install
   const state: DesktopBootstrapStageState = result?.state || 'pending'
@@ -143,7 +147,13 @@ function StageRow({ descriptor, result, now }: StageRowProps) {
           </span>
           {state !== 'running' && <span className="flex size-4 shrink-0 items-center justify-center">{icon}</span>}
         </div>
-        {reason && state !== 'pending' && <p className="mt-0.5 truncate text-xs text-muted-foreground">{reason}</p>}
+        {/* One sub-line slot: a real reason (skip/failure) always wins over
+            live progress chatter, which is only interesting while running. */}
+        {reason && state !== 'pending' ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{reason}</p>
+        ) : activity ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{activity}</p>
+        ) : null}
       </div>
       <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">
         {state === 'running' ? (elapsed ? `${copy.stageStates[state]} · ${elapsed}` : copy.stageStates[state]) : null}
@@ -395,6 +405,14 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
   const stages = state.manifest?.stages || []
   const currentStage = stages.find(s => state.stages[s.name]?.state === 'running')?.name
 
+  // Surface what the running stage is actually doing right now. The installer
+  // already logs per-item progress ("Checking X...", "Installing Y..."), but it
+  // only reaches the collapsed log panel, so a multi-minute stage looks hung.
+  // Pull the last stdout line for the running stage up next to its spinner.
+  const activity =
+    [...state.log].reverse().find(entry => entry.stage === currentStage && entry.stream !== 'stderr' && entry.line.trim())
+      ?.line ?? null
+
   const completedCount = stages.filter(
     s => state.stages[s.name]?.state === 'succeeded' || state.stages[s.name]?.state === 'skipped'
   ).length
@@ -464,7 +482,13 @@ export function DesktopInstallOverlay({ enabled = true }: DesktopInstallOverlayP
           {stages.length > 0 && (
             <ol className="mb-4 space-y-0.5">
               {stages.map(stage => (
-                <StageRow descriptor={stage} key={stage.name} now={now} result={state.stages[stage.name]} />
+                <StageRow
+                  activity={state.stages[stage.name]?.state === 'running' ? activity : null}
+                  descriptor={stage}
+                  key={stage.name}
+                  now={now}
+                  result={state.stages[stage.name]}
+                />
               ))}
             </ol>
           )}
