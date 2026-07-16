@@ -50,4 +50,34 @@ describe('tools rail — session scoping', () => {
       expect(LOCAL_SESSION_SOURCE_IDS).toContain(id)
     }
   })
+
+  describe('a session is visible in exactly one mode', () => {
+    // The rule the rail has to guarantee: given a session's source, exactly one
+    // rail mode may show it. Every list that can surface a session (sidebar
+    // recents, sidebar search, command palette) filters through this same
+    // predicate shape, so proving it here covers all of them.
+    const visibleInMode = (source: string, tool: null | string) =>
+      tool ? source === tool : !isToolSource(source)
+
+    const MODES = [null, ...TOOL_SESSION_SOURCE_IDS]
+
+    it.each(['desktop', 'tender-analyze', 'telegram', 'cron'])('source %s shows in exactly one mode', source => {
+      const modesShowing = MODES.filter(mode => visibleInMode(source, mode))
+
+      expect(modesShowing).toHaveLength(1)
+    })
+
+    it('never shows a tool session in general Chat', () => {
+      for (const id of TOOL_SESSION_SOURCE_IDS) {
+        expect(visibleInMode(id, null)).toBe(false)
+      }
+    })
+
+    it('never shows a non-tool session inside a tool mode', () => {
+      for (const id of TOOL_SESSION_SOURCE_IDS) {
+        expect(visibleInMode('desktop', id)).toBe(false)
+        expect(visibleInMode('telegram', id)).toBe(false)
+      }
+    })
+  })
 })

@@ -8,7 +8,7 @@ import {
   normalizeSessionSource,
   TOOL_SESSION_SOURCE_IDS
 } from '@/lib/session-source'
-import { $activeTool } from '@/store/tools'
+import { $activeTool, type ActiveTool } from '@/store/tools'
 import { setCronJobs } from '@/store/cron'
 import { $pinnedSessionIds, $sessionsLimit, bumpSessionsLimit, SIDEBAR_SESSIONS_PAGE_SIZE } from '@/store/layout'
 import { ALL_PROFILES, normalizeProfileKey } from '@/store/profile'
@@ -87,6 +87,10 @@ interface UseSessionListActionsArgs {
  *  wires into the sidebar and refresh effects. */
 export function useSessionListActions({ profileScope }: UseSessionListActionsArgs) {
   const refreshSessionsRequestRef = useRef(0)
+  // Which rail mode the current $sessions list was fetched under. `undefined`
+  // (not null — null is a real mode, general Chat) means "nothing fetched yet",
+  // so the first load replaces rather than merges into a stale list.
+  const lastFetchedToolRef = useRef<ActiveTool | undefined>(undefined)
 
   // Cron-job sessions as their own list (latest N). Independent of the recents
   // page so the two never compete for slots. Cheap + bounded. Kept (even though
@@ -195,7 +199,15 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
       const result = await listAllProfileSessions(limit, 1, 'exclude', 'recent', sessionProfile, sourceFilter)
 
       if (refreshSessionsRequestRef.current === requestId) {
-        setSessions(prev => mergeSessionPage(prev, result.sessions, sessionsToKeep()))
+        // Switching rail mode REPLACES the list; it never merges. mergeSessionPage
+        // deliberately preserves previous rows the server omitted (pinned,
+        // in-flight, active, just-settled) — correct while paging one scope, but
+        // across a mode switch those are exactly the rows from the mode we just
+        // left, so merging bleeds normal chats into Tender Analyze and back.
+        const scopeChanged = lastFetchedToolRef.current !== activeTool
+        lastFetchedToolRef.current = activeTool
+
+        setSessions(prev => (scopeChanged ? result.sessions : mergeSessionPage(prev, result.sessions, sessionsToKeep())))
         setSessionsTotal(typeof result.total === 'number' ? result.total : result.sessions.length)
         setSessionProfileTotals(result.profile_totals ?? {})
       }

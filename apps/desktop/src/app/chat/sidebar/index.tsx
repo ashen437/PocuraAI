@@ -24,7 +24,7 @@ import { useI18n } from '@/i18n'
 import { comboTokens } from '@/lib/keybinds/combo'
 import { profileColor } from '@/lib/profile-color'
 import { sessionMatchesSearch } from '@/lib/session-search'
-import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
+import { isToolSource, normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
 import { cn } from '@/lib/utils'
 import { $cronJobs } from '@/store/cron'
 import { $activeTool } from '@/store/tools'
@@ -346,6 +346,15 @@ export function ChatSidebar({
 
   const workingSessionIdSet = useMemo(() => new Set(workingSessionIds), [workingSessionIds])
 
+  /** True when a search hit belongs to the mode the user is currently in. A
+   *  tool mode admits only its own source; general Chat admits anything that
+   *  isn't a tool's. */
+  const searchMatchInActiveMode = useCallback(
+    (source: null | string | undefined) =>
+      activeTool ? normalizeSessionSource(source) === activeTool : !isToolSource(source),
+    [activeTool]
+  )
+
   // Index sessions by both their live id and their lineage-root id so a pin
   // stored as the pre-compression root resolves to the live continuation tip.
   const sessionByAnyId = useMemo(() => {
@@ -354,7 +363,12 @@ export function ChatSidebar({
     // Cron sessions are listed separately but can still be pinned, so index
     // them too — otherwise a pinned cron job can't resolve into the Pinned
     // section. Recents take precedence on id collisions (set last).
-    for (const s of [...cronSessions, ...visibleSessions]) {
+    // Skipped in a tool mode: cron belongs to general Chat, and indexing it
+    // here would resolve a pinned cron run into the tool's Pinned section —
+    // the same row showing in two modes.
+    const pinnable = activeTool ? visibleSessions : [...cronSessions, ...visibleSessions]
+
+    for (const s of pinnable) {
       map.set(s.id, s)
 
       if (s._lineage_root_id && !map.has(s._lineage_root_id)) {
@@ -363,7 +377,7 @@ export function ChatSidebar({
     }
 
     return map
-  }, [visibleSessions, cronSessions])
+  }, [activeTool, visibleSessions, cronSessions])
 
   const pinnedSessions = useMemo(() => {
     const seen = new Set<string>()
@@ -432,8 +446,13 @@ export function ChatSidebar({
       }
     }
 
+    // Server-side search spans every session regardless of source, so scope its
+    // hits to the active rail mode — otherwise searching inside Tender Analyze
+    // surfaces normal chats (and vice versa), which is exactly the separation
+    // the rail exists to enforce. The local `sortedSessions` loop above is
+    // already mode-scoped by the recents fetch.
     for (const match of serverMatches) {
-      if (out.has(match.session_id)) {
+      if (out.has(match.session_id) || !searchMatchInActiveMode(match.source)) {
         continue
       }
 
@@ -442,7 +461,7 @@ export function ChatSidebar({
     }
 
     return [...out.values()]
-  }, [trimmedQuery, sortedSessions, serverMatches, sessionByAnyId])
+  }, [trimmedQuery, sortedSessions, serverMatches, sessionByAnyId, searchMatchInActiveMode])
 
   const unpinnedAgentSessions = useMemo(
     () => sortedSessions.filter(s => !pinnedRealIdSet.has(s.id)),
@@ -813,6 +832,14 @@ export function ChatSidebar({
   // separately-fetched messaging slice by source, newest platform first, rows
   // within a platform by recency. Per-platform totals (when a "load more" has
   // resolved them) drive the count + whether more remain on disk.
+  // Capabilities / Messaging / Artifacts are general-Chat views, not part of a
+  // tool's workflow — a tool mode keeps only "New session" so its sidebar is
+  // just that tool's own chats.
+  const navItems = useMemo(
+    () => (activeTool ? SIDEBAR_NAV.filter(item => item.id === 'new-session') : SIDEBAR_NAV),
+    [activeTool]
+  )
+
   const messagingGroups = useMemo<MessagingSection[]>(() => {
     if (activeTool || !messagingSessions.length) {
       return []
@@ -1052,7 +1079,7 @@ export function ChatSidebar({
         <SidebarGroup className="shrink-0 p-0 pb-2 pt-[calc(var(--titlebar-height)+0.375rem)]">
           <SidebarGroupContent>
             <SidebarMenu className="gap-px">
-              {SIDEBAR_NAV.map(item => {
+              {navItems.map(item => {
                 const isInteractive = Boolean(item.action) || Boolean(item.route)
 
                 const active =

@@ -45,9 +45,11 @@ import {
   Wrench,
   Zap
 } from '@/lib/icons'
+import { TOOL_SESSION_SOURCE_IDS } from '@/lib/session-source'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { $repoWorktrees } from '@/store/coding-status'
+import { $activeTool } from '@/store/tools'
 import {
   $commandPaletteOpen,
   $commandPalettePage,
@@ -307,15 +309,24 @@ export function CommandPalette() {
     enabled: open
   })
 
+  // Scoped to the rail's active mode, like the sidebar list: an unscoped
+  // palette is a back door that shows the same session in both modes (jump to
+  // a tender chat from general Chat and vice versa). A tool mode admits only
+  // its own source; general Chat admits everything except the tools'.
+  const activeTool = useStore($activeTool)
+  const paletteSourceFilter = activeTool
+    ? { source: activeTool }
+    : { excludeSources: [...TOOL_SESSION_SOURCE_IDS] }
+
   const sessionsQuery = useQuery({
-    queryKey: ['command-palette', 'sessions'],
-    queryFn: () => listAllProfileSessions(200, 1, 'exclude'),
+    queryKey: ['command-palette', 'sessions', activeTool],
+    queryFn: () => listAllProfileSessions(200, 1, 'exclude', 'recent', 'all', paletteSourceFilter),
     enabled: open
   })
 
   const archivedQuery = useQuery({
-    queryKey: ['command-palette', 'archived'],
-    queryFn: () => listAllProfileSessions(200, 0, 'only'),
+    queryKey: ['command-palette', 'archived', activeTool],
+    queryFn: () => listAllProfileSessions(200, 0, 'only', 'recent', 'all', paletteSourceFilter),
     enabled: open
   })
 
