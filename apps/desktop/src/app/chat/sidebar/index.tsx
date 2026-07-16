@@ -27,6 +27,7 @@ import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
 import { cn } from '@/lib/utils'
 import { $cronJobs } from '@/store/cron'
+import { $activeTool } from '@/store/tools'
 import {
   $dismissedAutoProjectIds,
   $panesFlipped,
@@ -95,7 +96,7 @@ import {
   setCurrentCwd
 } from '@/store/session'
 
-import { type AppView, ARTIFACTS_ROUTE, MESSAGING_ROUTE, SKILLS_ROUTE, TENDER_ANALYZE_ROUTE } from '../../routes'
+import { type AppView, ARTIFACTS_ROUTE, MESSAGING_ROUTE, SKILLS_ROUTE } from '../../routes'
 import type { SidebarNavItem } from '../../types'
 
 import { countLabel } from './chrome'
@@ -144,8 +145,7 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     route: SKILLS_ROUTE
   },
   { id: 'messaging', label: '', icon: props => <Codicon name="comment" {...props} />, route: MESSAGING_ROUTE },
-  { id: 'artifacts', label: '', icon: props => <Codicon name="files" {...props} />, route: ARTIFACTS_ROUTE },
-  { id: 'tender-analyze', label: '', icon: props => <Codicon name="checklist" {...props} />, route: TENDER_ANALYZE_ROUTE }
+  { id: 'artifacts', label: '', icon: props => <Codicon name="files" {...props} />, route: ARTIFACTS_ROUTE }
 ]
 
 // Two modes via the `compact` height variant (styles.css):
@@ -244,6 +244,10 @@ export function ChatSidebar({
   const sessions = useStore($sessions)
   const cronSessions = useStore($cronSessions)
   const cronJobs = useStore($cronJobs)
+  // A tool mode (Tender Analyze, …) scopes the sidebar to that tool's own
+  // sessions only — cron jobs and the messaging-platform sections belong to
+  // general Chat and are hidden while a tool is active.
+  const activeTool = useStore($activeTool)
   const messagingSessions = useStore($messagingSessions)
   const messagingPlatformTotals = useStore($messagingPlatformTotals)
   const messagingTruncated = useStore($messagingTruncated)
@@ -810,7 +814,7 @@ export function ChatSidebar({
   // within a platform by recency. Per-platform totals (when a "load more" has
   // resolved them) drive the count + whether more remain on disk.
   const messagingGroups = useMemo<MessagingSection[]>(() => {
-    if (!messagingSessions.length) {
+    if (activeTool || !messagingSessions.length) {
       return []
     }
 
@@ -846,7 +850,7 @@ export function ChatSidebar({
         }
       })
       .sort((a, b) => sessionTime(b.sessions[0]) - sessionTime(a.sessions[0]))
-  }, [messagingSessions, messagingPlatformTotals, messagingTruncated])
+  }, [activeTool, messagingSessions, messagingPlatformTotals, messagingTruncated])
 
   // ALL-profiles view: one collapsible group per profile, color on the header
   // (not on every row). Default profile floats to the top, the rest alpha.
@@ -1054,8 +1058,7 @@ export function ChatSidebar({
                 const active =
                   (item.id === 'skills' && currentView === 'skills') ||
                   (item.id === 'messaging' && currentView === 'messaging') ||
-                  (item.id === 'artifacts' && currentView === 'artifacts') ||
-                  (item.id === 'tender-analyze' && currentView === 'tender-analyze')
+                  (item.id === 'artifacts' && currentView === 'artifacts')
 
                 const isNewSession = item.id === 'new-session'
 
@@ -1380,7 +1383,7 @@ export function ChatSidebar({
                 )
               })}
 
-            {!trimmedQuery && !worktreeGroupingActive && cronJobs.length > 0 && (
+            {!trimmedQuery && !worktreeGroupingActive && !activeTool && cronJobs.length > 0 && (
               <SidebarCronJobsSection
                 jobs={cronJobs}
                 label={s.cronJobs}

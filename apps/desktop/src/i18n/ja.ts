@@ -1455,26 +1455,12 @@ export const ja = defineLocale({
     copyPath: 'パスをコピー'
   },
 
-  tenderAnalyze: {
-    title: '入札分析',
-    subtitle:
-      '入札書類をドロップして質問してください。Pocura は PDF、スキャン PDF、Word、PowerPoint、Excel、画像などを読み取ります。',
-    dropTitle: 'ここにファイルをドロップ',
-    dropHint: 'PDF、スキャン PDF、Word、PowerPoint、Excel、画像、メール、テキスト — またはクリックして選択',
-    browse: 'ファイルを選択',
-    questionLabel: '質問',
-    questionPlaceholder: '例：提出期限はいつですか？どの書類が必須ですか？',
-    analyze: '分析する',
-    analyzing: '分析中…',
-    clear: 'すべてクリア',
-    remove: name => `${name} を削除`,
-    fileCount: count => `${count} 件のファイル`,
-    noWorkspaceTitle: '先にワークスペースを選択してください',
-    noWorkspaceDesc:
-      'Tender Analyze はアップロードした書類をワークスペースフォルダに保存します。設定で選択するか、プロジェクトを開いてから戻ってください。',
-    chooseWorkspace: '設定を開く',
-    errorTitle: '分析に失敗しました',
-    uploadFailed: name => `${name} をアップロードできませんでした`
+  toolsRail: {
+    label: 'ツール',
+    items: {
+      chat: 'チャット',
+      'tender-analyze': '入札分析'
+    }
   },
 
   sidebar: {
@@ -1482,8 +1468,7 @@ export const ja = defineLocale({
       'new-session': '新しいセッション',
       skills: 'スキルとツール',
       messaging: 'メッセージング',
-      artifacts: 'アーティファクト',
-      'tender-analyze': '入札分析'
+      artifacts: 'アーティファクト'
     },
     searchAria: 'セッションを検索',
     searchPlaceholder: 'セッションを検索…',

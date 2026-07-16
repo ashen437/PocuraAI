@@ -5,8 +5,10 @@ import {
   isMessagingSource,
   LOCAL_SESSION_SOURCE_IDS,
   MESSAGING_SESSION_SOURCE_IDS,
-  normalizeSessionSource
+  normalizeSessionSource,
+  TOOL_SESSION_SOURCE_IDS
 } from '@/lib/session-source'
+import { $activeTool } from '@/store/tools'
 import { setCronJobs } from '@/store/cron'
 import { $pinnedSessionIds, $sessionsLimit, bumpSessionsLimit, SIDEBAR_SESSIONS_PAGE_SIZE } from '@/store/layout'
 import { ALL_PROFILES, normalizeProfileKey } from '@/store/profile'
@@ -36,7 +38,16 @@ import { sameCronSignature } from '../../desktop-controller-utils'
 // self-managed sidebar section (refreshMessagingSessions). Excluding both here
 // keeps "Load more" paging through interactive local chats instead of
 // interleaving gateway threads that bury them.
-const SIDEBAR_EXCLUDED_SOURCES = ['cron', 'subagent', 'tool', ...MESSAGING_SESSION_SOURCE_IDS]
+// Tool sessions (Tender Analyze, …) are excluded too: each tool's rail mode
+// lists its own sessions, so a tender chat must not also surface in general
+// recents — "keep the records separate" is the whole point of the rail.
+const SIDEBAR_EXCLUDED_SOURCES = [
+  'cron',
+  'subagent',
+  'tool',
+  ...MESSAGING_SESSION_SOURCE_IDS,
+  ...TOOL_SESSION_SOURCE_IDS
+]
 // The messaging slice is the inverse: drop cron + every local source so only
 // external-platform conversations remain, then split per platform in the UI.
 const MESSAGING_EXCLUDED_SOURCES = ['cron', ...LOCAL_SESSION_SOURCE_IDS]
@@ -173,9 +184,15 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
       // recency page — the empty-history-on-profile-switch bug.
       const sessionProfile = profileScope === ALL_PROFILES ? 'all' : profileScope
 
-      const result = await listAllProfileSessions(limit, 1, 'exclude', 'recent', sessionProfile, {
-        excludeSources: SIDEBAR_EXCLUDED_SOURCES
-      })
+      // The rail's active tool scopes this list: a tool mode lists ONLY its own
+      // sessions, general Chat lists everything except the tools' (and cron's,
+      // and the messaging platforms'). Same source-filter mechanism cron uses.
+      const activeTool = $activeTool.get()
+      const sourceFilter = activeTool
+        ? { source: activeTool }
+        : { excludeSources: SIDEBAR_EXCLUDED_SOURCES }
+
+      const result = await listAllProfileSessions(limit, 1, 'exclude', 'recent', sessionProfile, sourceFilter)
 
       if (refreshSessionsRequestRef.current === requestId) {
         setSessions(prev => mergeSessionPage(prev, result.sessions, sessionsToKeep()))

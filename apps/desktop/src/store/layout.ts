@@ -5,8 +5,13 @@ import { arraysEqual, insertUniqueId } from '@/lib/storage'
 
 import { $paneStates, ensurePaneRegistered, setPaneOpen, setPaneWidthOverride, togglePane } from './panes'
 
-export const SIDEBAR_DEFAULT_WIDTH = 237
-export const SIDEBAR_MAX_WIDTH = 360
+// The tools rail (w-11 = 44px) renders inside the chat-sidebar pane, to the
+// left of the sidebar itself, so these widths cover rail + sidebar. Both were
+// bumped by the rail's width to leave the session list the same usable space
+// it had before the rail existed.
+export const TOOLS_RAIL_WIDTH = 44
+export const SIDEBAR_DEFAULT_WIDTH = 237 + TOOLS_RAIL_WIDTH
+export const SIDEBAR_MAX_WIDTH = 360 + TOOLS_RAIL_WIDTH
 // Open at the same width as the sessions sidebar so the two rails match, but
 // allow shrinking well below that (~30% under the old 14rem floor) for users who
 // want a narrow tree.

@@ -11,6 +11,7 @@ import { $pinnedSessionIds } from '@/store/layout'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import { $activeGatewayProfile, $newChatProfile, ensureGatewayProfile, normalizeProfileKey } from '@/store/profile'
 import { resolveNewSessionCwd, tombstoneSessions, untombstoneSessions } from '@/store/projects'
+import { $activeTool, sessionSourceForTool } from '@/store/tools'
 import {
   $currentCwd,
   $currentFastMode,
@@ -174,9 +175,14 @@ export function useSessionActions({
         const uiEffort = $currentReasoningEffort.get().trim()
         const uiFast = $currentFastMode.get()
 
+        // The rail's active tool decides the session source: 'desktop' for
+        // general Chat, the tool's own id (e.g. 'tender-analyze') otherwise.
+        // That source is what keeps each tool's history a separate list AND
+        // what the backend keys the tool's system-prompt framing off, so it
+        // must be set at create time — it is not editable afterwards.
         const created = await requestGateway<SessionCreateResponse>('session.create', {
           cols: 96,
-          source: 'desktop',
+          source: sessionSourceForTool($activeTool.get()),
           ...(cwd && { cwd }),
           ...(newChatProfile ? { profile: newChatProfile } : {}),
           ...(uiModel ? { model: uiModel, ...(uiProvider ? { provider: uiProvider } : {}) } : {}),

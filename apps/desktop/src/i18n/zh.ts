@@ -1655,24 +1655,12 @@ export const zh: Translations = {
     copyPath: '复制路径'
   },
 
-  tenderAnalyze: {
-    title: '标书分析',
-    subtitle: '拖入标书文件并提问。Pocura 可读取 PDF、扫描版 PDF、Word、PowerPoint、Excel、图片等。',
-    dropTitle: '将文件拖到此处',
-    dropHint: 'PDF、扫描版 PDF、Word、PowerPoint、Excel、图片、邮件、文本 — 或点击浏览',
-    browse: '选择文件',
-    questionLabel: '你的问题',
-    questionPlaceholder: '例如：投标截止日期是什么时候？哪些文件是必需的？',
-    analyze: '开始分析',
-    analyzing: '分析中…',
-    clear: '清除全部',
-    remove: name => `移除 ${name}`,
-    fileCount: count => `${count} 个文件`,
-    noWorkspaceTitle: '请先选择工作区',
-    noWorkspaceDesc: 'Tender Analyze 会将你上传的文件保存到工作区文件夹。请在设置中选择一个，或打开一个项目后再返回。',
-    chooseWorkspace: '打开设置',
-    errorTitle: '分析失败',
-    uploadFailed: name => `无法上传 ${name}`
+  toolsRail: {
+    label: '工具',
+    items: {
+      chat: '对话',
+      'tender-analyze': '标书分析'
+    }
   },
 
   sidebar: {
@@ -1680,8 +1668,7 @@ export const zh: Translations = {
       'new-session': '新建会话',
       skills: '技能与工具',
       messaging: '消息平台',
-      artifacts: '产物',
-      'tender-analyze': '标书分析'
+      artifacts: '产物'
     },
     searchAria: '搜索会话',
     searchPlaceholder: '搜索会话…',

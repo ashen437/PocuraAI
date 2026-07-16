@@ -207,6 +207,40 @@ def _installer_specs(path: Path, pattern: str):
     return set(re.findall(pattern, path.read_text(encoding="utf-8")))
 
 
+def test_tool_session_sources_match_backend():
+    """The desktop tools rail and the gateway must agree on tool source ids.
+
+    A tool source that the backend's _DESKTOP_OWNED_SOURCES doesn't know is the
+    nastiest failure mode in this feature: the session still works, but
+    _is_desktop_owned_source() returns False, so the "no workspace selected ->
+    refuse" guard stops firing and that tool's file writes silently fall back to
+    the OS home directory — exactly the bug that rule exists to prevent.
+    """
+    import re
+
+    repo = Path(__file__).resolve().parents[1]
+
+    ts = (repo / "apps" / "desktop" / "src" / "lib" / "session-source.ts").read_text(encoding="utf-8")
+    block = re.search(r"export const TOOL_SESSION_SOURCE_IDS = \[(.*?)\]", ts, re.S)
+    assert block, "TOOL_SESSION_SOURCE_IDS not found in session-source.ts"
+    frontend = set(re.findall(r"'([^']+)'", block.group(1)))
+    assert frontend, "TOOL_SESSION_SOURCE_IDS is empty"
+
+    py = (repo / "tui_gateway" / "server.py").read_text(encoding="utf-8")
+    owned = re.search(r"_DESKTOP_OWNED_SOURCES = frozenset\(\{(.*?)\}\)", py, re.S)
+    assert owned, "_DESKTOP_OWNED_SOURCES not found in server.py"
+    # Resolve the constant reference the frozenset is built from.
+    source_const = re.search(r'TENDER_ANALYZE_SOURCE = "([^"]+)"', py)
+    assert source_const, "TENDER_ANALYZE_SOURCE not found in server.py"
+    backend = set(re.findall(r'"([^"]+)"', owned.group(1))) | {source_const.group(1)}
+
+    missing = frontend - backend
+    assert not missing, (
+        f"Tool source(s) {sorted(missing)} are missing from _DESKTOP_OWNED_SOURCES in "
+        "tui_gateway/server.py — their sessions would lose the no-workspace guard."
+    )
+
+
 def test_documents_extra_excluded_from_all():
     """The [documents] extra is installed by the installer's `document-libs`
     stage (Install-DocumentLibs / install_document_libs), NOT via [all].

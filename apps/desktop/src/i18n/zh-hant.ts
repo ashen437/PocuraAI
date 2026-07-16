@@ -1408,24 +1408,12 @@ export const zhHant = defineLocale({
     copyPath: '複製路徑'
   },
 
-  tenderAnalyze: {
-    title: '標書分析',
-    subtitle: '拖入標書文件並提問。Pocura 可讀取 PDF、掃描版 PDF、Word、PowerPoint、Excel、圖片等。',
-    dropTitle: '將檔案拖到此處',
-    dropHint: 'PDF、掃描版 PDF、Word、PowerPoint、Excel、圖片、郵件、文字 — 或點擊瀏覽',
-    browse: '選擇檔案',
-    questionLabel: '你的問題',
-    questionPlaceholder: '例如：投標截止日期是什麼時候？哪些文件是必要的？',
-    analyze: '開始分析',
-    analyzing: '分析中…',
-    clear: '清除全部',
-    remove: name => `移除 ${name}`,
-    fileCount: count => `${count} 個檔案`,
-    noWorkspaceTitle: '請先選擇工作區',
-    noWorkspaceDesc: 'Tender Analyze 會將你上傳的檔案儲存到工作區資料夾。請在設定中選擇一個，或開啟一個專案後再返回。',
-    chooseWorkspace: '開啟設定',
-    errorTitle: '分析失敗',
-    uploadFailed: name => `無法上傳 ${name}`
+  toolsRail: {
+    label: '工具',
+    items: {
+      chat: '聊天',
+      'tender-analyze': '標書分析'
+    }
   },
 
   sidebar: {
@@ -1433,8 +1421,7 @@ export const zhHant = defineLocale({
       'new-session': '新工作階段',
       skills: '技能與工具',
       messaging: '訊息平台',
-      artifacts: '成品',
-      'tender-analyze': '標書分析'
+      artifacts: '成品'
     },
     searchAria: '搜尋工作階段',
     searchPlaceholder: '搜尋工作階段…',

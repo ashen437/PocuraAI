@@ -88,6 +88,7 @@ import {
   PREVIEW_RAIL_PANE_WIDTH
 } from './chat/right-rail'
 import { ChatSidebar } from './chat/sidebar'
+import { ToolsRail } from './tools-rail'
 import { CommandPalette } from './command-palette'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from './gateway/hooks/use-gateway-request'
@@ -136,7 +137,6 @@ const StarmapView = lazy(async () => ({ default: (await import('./starmap')).Sta
 const MessagingView = lazy(async () => ({ default: (await import('./messaging')).MessagingView }))
 const ProfilesView = lazy(async () => ({ default: (await import('./profiles')).ProfilesView }))
 const SettingsView = lazy(async () => ({ default: (await import('./settings')).SettingsView }))
-const TenderAnalyzeView = lazy(async () => ({ default: (await import('./tender-analyze')).TenderAnalyzeView }))
 const SkillsView = lazy(async () => ({ default: (await import('./skills')).SkillsView }))
 
 // Latest cron-job sessions surfaced in the collapsed "Cron jobs" section. The
@@ -1038,6 +1038,24 @@ export function DesktopController() {
     />
   )
 
+  // Tools rail + sidebar share the chat-sidebar pane, so the rail follows the
+  // pane's side swap and collapse for free, and the pane-width math other panes
+  // compute against (PREVIEW_RAIL_PANE_WIDTH) keeps working unchanged.
+  // Switching tool re-scopes the sidebar's session list to that tool's source,
+  // so refetch, and leave any open session behind — it belongs to the mode the
+  // user just left.
+  const sidebarWithRail = (
+    <div className="flex h-full min-h-0 w-full">
+      <ToolsRail
+        onSelectTool={() => {
+          navigate(NEW_CHAT_ROUTE)
+          void refreshSessions()
+        }}
+      />
+      <div className="min-w-0 flex-1">{sidebar}</div>
+    </div>
+  )
+
   // The persistent xterm layer (one host per terminal tab), CSS-overlaid onto the
   // pane's <TerminalSlot />. Lives in main's stacking context (not the root overlay
   // layer) so pane resize handles still paint above it. Terminals own their state
@@ -1309,7 +1327,7 @@ export function DesktopController() {
           side={sidebarSide}
           width={`${SIDEBAR_DEFAULT_WIDTH}px`}
         >
-          {sidebar}
+          {sidebarWithRail}
         </Pane>
       )}
       <PaneMain>
@@ -1339,14 +1357,6 @@ export function DesktopController() {
               </Suspense>
             }
             path="artifacts"
-          />
-          <Route
-            element={
-              <Suspense fallback={null}>
-                <TenderAnalyzeView setStatusbarItemGroup={setStatusbarItemGroup} />
-              </Suspense>
-            }
-            path="tender-analyze"
           />
           <Route element={null} path="cron" />
           <Route element={null} path="profiles" />

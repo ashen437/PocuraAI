@@ -1648,6 +1648,60 @@ def _session_source(session: dict | None) -> str:
     return _resolve_session_platform()
 
 
+# Desktop "tool" sessions: same desktop chat, own session source so their
+# history stays a separate list in the sidebar (the mechanism cron already
+# uses -- see SessionSourceFilter / excludeSources). Keep in sync with
+# TOOL_SESSION_SOURCE_IDS in apps/desktop/src/lib/session-source.ts.
+TENDER_ANALYZE_SOURCE = "tender-analyze"
+_DESKTOP_OWNED_SOURCES = frozenset({"desktop", TENDER_ANALYZE_SOURCE})
+
+# Appended to the real system prompt for tender sessions via AIAgent's
+# ephemeral_system_prompt (execution-only; never stored in history, so it
+# can't render as a chat bubble or leak into a trajectory).
+TENDER_ANALYZE_SYSTEM_PROMPT = """\
+You are assisting with procurement / tender analysis. The user works with tender \
+and bid documents: invitations to tender, addenda, specifications, bills of \
+quantities, contract terms, and correspondence.
+
+When answering questions about attached documents, pay particular attention to:
+- Scope of work and deliverables
+- Key dates: issue, clarification, submission deadline, bid validity
+- Eligibility and qualification criteria
+- Pricing and commercial terms (currency, taxes, payment schedule)
+- Compliance and submission requirements (formats, copies, mandatory forms)
+
+Rules:
+- Ground every statement in the documents and cite the source file for each fact.
+- If something is missing, ambiguous, or contradictory across documents, say so \
+explicitly rather than inferring or filling the gap. A missed requirement can \
+disqualify a bid, so an admitted gap is worth more than a confident guess.
+- Quote exact figures, dates and clause references instead of paraphrasing them.
+- Scanned documents are read via OCR and can contain errors. Flag anything that \
+looks like an OCR artefact rather than silently correcting it."""
+
+
+def _is_desktop_owned_source(source: str | None) -> bool:
+    """True for sources whose sessions the desktop app owns.
+
+    Load-bearing for the "no workspace selected -> refuse, never fall back"
+    rule: every desktop tool source must be covered here, or a tool session
+    silently regains the home-directory fallback that rule exists to kill.
+    """
+    return (source or "").strip().lower() in _DESKTOP_OWNED_SOURCES
+
+
+def _tool_ephemeral_prompt(source: str | None) -> str | None:
+    """Per-tool system-prompt extension, keyed off the session source.
+
+    Derived here rather than stored on the session dict so it applies
+    identically on create, resume and mid-session rebuild -- every
+    _make_agent call site already passes the source as platform_override.
+    """
+    if (source or "").strip().lower() == TENDER_ANALYZE_SOURCE:
+        return TENDER_ANALYZE_SYSTEM_PROMPT
+    return None
+
+
 def _register_session_cwd(session: dict | None) -> None:
     if not session:
         return
@@ -1660,7 +1714,7 @@ def _register_session_cwd(session: dict | None) -> None:
         # must not let write tools silently land in whatever directory this
         # cwd fell back to (see _completion_cwd). Flag it so file_tools can
         # refuse writes instead of guessing a location the user never picked.
-        if _session_source(session) == "desktop" and not session.get("explicit_cwd"):
+        if _is_desktop_owned_source(_session_source(session)) and not session.get("explicit_cwd"):
             overrides["no_workspace"] = True
         register_task_env_overrides(session["session_key"], overrides)
     except Exception:
@@ -4526,6 +4580,16 @@ def _make_agent(
             system_prompt = "\n\n".join(
                 part for part in (system_prompt, skills_prompt) if part
             ).strip()
+    # Per-tool framing (procurement guidance for tender-analyze sessions).
+    # APPENDED to the configured agent.system_prompt / skills prompt rather
+    # than passed as its own ephemeral_system_prompt kwarg — that kwarg is
+    # already this variable's destination, so setting it directly would drop
+    # the user's configured system prompt and any preloaded skills. Keyed off
+    # the session source, which every _make_agent call site passes as
+    # platform_override, so create/resume/rebuild all agree. No-op for
+    # ordinary sessions.
+    if tool_prompt := _tool_ephemeral_prompt(platform_override):
+        system_prompt = "\n\n".join(part for part in (system_prompt, tool_prompt) if part).strip()
     # Prefer a per-session model override (set by a prior in-session /model
     # switch) over global config/env resolution. Resume-time stored sessions may
     # also pass scalar model/provider/runtime knobs from the persisted DB row.
@@ -9790,7 +9854,7 @@ def _attachment_ref_path(session: dict, target: Path) -> str:
 
 
 def _desktop_attachment_dir(session: dict) -> Path:
-    if _session_source(session) == "desktop" and not session.get("explicit_cwd"):
+    if _is_desktop_owned_source(_session_source(session)) and not session.get("explicit_cwd"):
         raise RuntimeError(
             "No workspace selected. Choose a project folder in Pocura before "
             "attaching files -- files are not saved to a default location."
