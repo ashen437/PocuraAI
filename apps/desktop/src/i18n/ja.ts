@@ -1463,7 +1463,8 @@ export const ja = defineLocale({
     label: 'ツール',
     items: {
       chat: 'チャット',
-      'tender-analyze': '入札分析'
+      'tender-analyze': '入札分析',
+      'report-generator': 'レポート生成'
     }
   },
 
@@ -2366,7 +2367,11 @@ export const ja = defineLocale({
         },
         web_search: { done: 'Web を検索しました', pending: 'Web を検索中', pendingAction: '検索中' },
         write_file: { done: 'ファイルを編集しました', pending: 'ファイルを編集中', pendingAction: '編集中' }
-      }
+      },
+      reportReady: 'レポートが完成しました',
+      openWord: 'Word を開く',
+      openPdf: 'PDF を開く',
+      reportOpenFailed: 'レポートを開けませんでした'
     }
   },
 

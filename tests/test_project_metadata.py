@@ -229,10 +229,21 @@ def test_tool_session_sources_match_backend():
     py = (repo / "tui_gateway" / "server.py").read_text(encoding="utf-8")
     owned = re.search(r"_DESKTOP_OWNED_SOURCES = frozenset\(\{(.*?)\}\)", py, re.S)
     assert owned, "_DESKTOP_OWNED_SOURCES not found in server.py"
-    # Resolve the constant reference the frozenset is built from.
-    source_const = re.search(r'TENDER_ANALYZE_SOURCE = "([^"]+)"', py)
-    assert source_const, "TENDER_ANALYZE_SOURCE not found in server.py"
-    backend = set(re.findall(r'"([^"]+)"', owned.group(1))) | {source_const.group(1)}
+    members = [m.strip() for m in owned.group(1).split(",") if m.strip()]
+
+    # Each member is either a literal ("desktop") or a bare constant reference
+    # (TENDER_ANALYZE_SOURCE, REPORT_GENERATOR_SOURCE, ...) -- resolve every
+    # constant generically rather than hardcoding one name, so the NEXT tool
+    # doesn't have to touch this test just to make it see its own constant.
+    backend = set()
+    for member in members:
+        literal = re.match(r'^"([^"]+)"$', member)
+        if literal:
+            backend.add(literal.group(1))
+            continue
+        const_value = re.search(rf'^{re.escape(member)} = "([^"]+)"', py, re.M)
+        assert const_value, f"Could not resolve constant {member!r} referenced in _DESKTOP_OWNED_SOURCES"
+        backend.add(const_value.group(1))
 
     missing = frontend - backend
     assert not missing, (

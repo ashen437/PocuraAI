@@ -1653,7 +1653,8 @@ def _session_source(session: dict | None) -> str:
 # uses -- see SessionSourceFilter / excludeSources). Keep in sync with
 # TOOL_SESSION_SOURCE_IDS in apps/desktop/src/lib/session-source.ts.
 TENDER_ANALYZE_SOURCE = "tender-analyze"
-_DESKTOP_OWNED_SOURCES = frozenset({"desktop", TENDER_ANALYZE_SOURCE})
+REPORT_GENERATOR_SOURCE = "report-generator"
+_DESKTOP_OWNED_SOURCES = frozenset({"desktop", TENDER_ANALYZE_SOURCE, REPORT_GENERATOR_SOURCE})
 
 # Appended to the real system prompt for tender sessions via AIAgent's
 # ephemeral_system_prompt (execution-only; never stored in history, so it
@@ -1698,6 +1699,40 @@ files, and say which appears to govern and why.
 With a single document attached, answer directly — no per-document sections and no \
 summary."""
 
+# Same execution-only ephemeral_system_prompt mechanism as TENDER_ANALYZE_SYSTEM_PROMPT
+# above -- appended to the configured system prompt, never stored in history.
+REPORT_GENERATOR_SYSTEM_PROMPT = """\
+You are assisting with report generation: the user attaches documents of any \
+kind (PDFs, scanned PDFs, Word, PowerPoint, Excel, images, plain text, ...) and \
+asks for a written report on some question or topic. Your job is to read every \
+attached source, then produce a structured report and hand it to the \
+`create_report` tool so it can be downloaded as a Word document and a PDF.
+
+Before writing anything:
+- Open and read every attached document. Never answer from a subset, and never \
+answer from memory or general knowledge in place of the actual sources.
+- Identify what data is genuinely tabular or numeric in the sources (counts, \
+amounts, percentages, dates plotted over time, category breakdowns, etc.) -- \
+that is the only data a chart may be built from.
+
+Structuring the report:
+- Give it a clear, specific title reflecting what was actually asked and found.
+- Break it into sections, each with a short heading and a paragraph explaining \
+that part of the analysis in plain language -- write for a reader who has not \
+seen the source documents, not a bullet-point summary of them.
+- Add a chart to a section ONLY when the sources contain real numeric/tabular \
+data suited to it, and only using the actual figures found -- never invent, \
+estimate, or round numbers to make a nicer-looking chart. A section with \
+nothing chartable gets no chart; that is the normal case, not a gap to fill.
+- Cite which source file each section's content came from.
+- If sources disagree or a needed figure is simply not present anywhere, say so \
+in the relevant section rather than silently picking one source or omitting \
+the discrepancy.
+
+Once the content is fully drafted, call `create_report` ONCE with the whole \
+report (title + all sections) -- it produces both the .docx and the .pdf \
+together, so do not call it more than once per report or per format."""
+
 
 def _is_desktop_owned_source(source: str | None) -> bool:
     """True for sources whose sessions the desktop app owns.
@@ -1709,6 +1744,12 @@ def _is_desktop_owned_source(source: str | None) -> bool:
     return (source or "").strip().lower() in _DESKTOP_OWNED_SOURCES
 
 
+_TOOL_SYSTEM_PROMPTS = {
+    TENDER_ANALYZE_SOURCE: TENDER_ANALYZE_SYSTEM_PROMPT,
+    REPORT_GENERATOR_SOURCE: REPORT_GENERATOR_SYSTEM_PROMPT,
+}
+
+
 def _tool_ephemeral_prompt(source: str | None) -> str | None:
     """Per-tool system-prompt extension, keyed off the session source.
 
@@ -1716,9 +1757,7 @@ def _tool_ephemeral_prompt(source: str | None) -> str | None:
     identically on create, resume and mid-session rebuild -- every
     _make_agent call site already passes the source as platform_override.
     """
-    if (source or "").strip().lower() == TENDER_ANALYZE_SOURCE:
-        return TENDER_ANALYZE_SYSTEM_PROMPT
-    return None
+    return _TOOL_SYSTEM_PROMPTS.get((source or "").strip().lower())
 
 
 def _register_session_cwd(session: dict | None) -> None:

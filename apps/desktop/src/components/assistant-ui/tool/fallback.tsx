@@ -62,6 +62,8 @@ import {
   type ToolStatus,
   type ToolTitleAction
 } from './fallback-model'
+import { parseMaybeObject } from './fallback-model/format'
+import { CreateReportCard, parseCreateReportResult } from './report-card'
 
 // `true` when a ToolEntry is rendered inside an embedding wrapper that owns
 // the per-row chrome (timer / preview). The flat ToolGroupSlot sets this
@@ -422,6 +424,19 @@ function ToolEntry({ part }: ToolEntryProps) {
 
   if (dismissed) {
     return null
+  }
+
+  // A completed create_report call renders as a dedicated "download" card
+  // instead of the generic collapsible JSON view -- fails closed to the
+  // generic renderer below when the result isn't (yet, or ever) the expected
+  // shape (still streaming, or an error result), so nothing here can hide a
+  // genuine failure from the user.
+  if (part.toolName === 'create_report' && !isPending && view.status !== 'error') {
+    const report = parseCreateReportResult(parseMaybeObject(result))
+
+    if (report) {
+      return <CreateReportCard report={report} />
+    }
   }
 
   // A completed file edit with no diff to review is a bare, unexpandable row.

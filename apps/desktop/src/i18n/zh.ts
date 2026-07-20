@@ -1663,7 +1663,8 @@ export const zh: Translations = {
     label: '工具',
     items: {
       chat: '对话',
-      'tender-analyze': '标书分析'
+      'tender-analyze': '标书分析',
+      'report-generator': '报告生成器'
     }
   },
 
@@ -2534,7 +2535,11 @@ export const zh: Translations = {
         web_extract: { done: '已读取网页', pending: '正在读取网页', pendingAction: '正在读取' },
         web_search: { done: '已搜索网页', pending: '正在搜索网页', pendingAction: '正在搜索' },
         write_file: { done: '已编辑文件', pending: '正在编辑文件', pendingAction: '正在编辑' }
-      }
+      },
+      reportReady: '报告已生成',
+      openWord: '打开 Word',
+      openPdf: '打开 PDF',
+      reportOpenFailed: '无法打开报告'
     }
   },
 

@@ -1485,7 +1485,8 @@ export const en: Translations = {
     label: 'Tools',
     items: {
       chat: 'Chat',
-      'tender-analyze': 'Tender Analyze'
+      'tender-analyze': 'Tender Analyze',
+      'report-generator': 'Report Generator'
     }
   },
 
@@ -2383,7 +2384,11 @@ export const en: Translations = {
         web_extract: { done: 'Read webpage', pending: 'Reading webpage', pendingAction: 'Reading' },
         web_search: { done: 'Searched web', pending: 'Searching web', pendingAction: 'Searching' },
         write_file: { done: 'Edited file', pending: 'Editing file', pendingAction: 'Editing' }
-      }
+      },
+      reportReady: 'Report ready',
+      openWord: 'Open Word',
+      openPdf: 'Open PDF',
+      reportOpenFailed: 'Could not open the report'
     }
   },
 

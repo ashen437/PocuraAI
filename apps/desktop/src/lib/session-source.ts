@@ -13,6 +13,7 @@ const SOURCE_LABELS: Record<string, string> = {
   matrix: 'Matrix',
   mattermost: 'Mattermost',
   qqbot: 'QQ',
+  'report-generator': 'Report Generator',
   signal: 'Signal',
   slack: 'Slack',
   sms: 'SMS',
@@ -46,7 +47,7 @@ const SOURCE_ALIASES: Record<string, string[]> = {
 // tui_gateway/server.py (_DESKTOP_OWNED_SOURCES — miss it and the tool's
 // sessions silently regain the home-directory fallback), a SOURCE_LABELS
 // entry above, and a rail entry in app/tools-rail.
-export const TOOL_SESSION_SOURCE_IDS = ['tender-analyze']
+export const TOOL_SESSION_SOURCE_IDS = ['tender-analyze', 'report-generator']
 const TOOL_SOURCE_IDS = new Set(TOOL_SESSION_SOURCE_IDS)
 
 /** True when a source belongs to a desktop tool (Tender Analyze, …) rather

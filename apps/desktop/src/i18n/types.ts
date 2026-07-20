@@ -1978,6 +1978,10 @@ export interface Translations {
         runningTool: (action: string) => string
       }
       titles: Record<ToolTitleKey, ToolTitleCopy>
+      reportReady: string
+      openWord: string
+      openPdf: string
+      reportOpenFailed: string
     }
   }
 

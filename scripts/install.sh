@@ -1663,6 +1663,8 @@ DOCUMENT_LIBS=(
     "ebooklib ebooklib==0.20|ebooklib (.epub)"
     "bs4 beautifulsoup4==4.13.5|beautifulsoup4 (HTML)"
     "lxml lxml==6.1.1|lxml (HTML parser backend)"
+    "matplotlib matplotlib==3.11.1|matplotlib (Report Generator charts)"
+    "reportlab reportlab==5.0.0|reportlab (Report Generator PDF)"
 )
 
 install_document_libs() {

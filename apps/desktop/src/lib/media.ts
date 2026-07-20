@@ -146,6 +146,24 @@ export async function downloadGatewayMediaFile(path: string): Promise<void> {
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
 }
 
+// Open (local) or download (remote gateway) a path the agent wrote into the
+// workspace -- shared by the Artifacts panel and the Report Generator's
+// "Download Report" chat card so both use one open/remote-download branch
+// instead of two copies drifting apart.
+export async function openOrDownloadFile(path: string): Promise<void> {
+  if (isRemoteGateway() && /^file:/i.test(path)) {
+    await downloadGatewayMediaFile(path)
+
+    return
+  }
+
+  if (window.hermesDesktop?.openExternal) {
+    await window.hermesDesktop.openExternal(path)
+  } else {
+    window.open(path, '_blank', 'noopener,noreferrer')
+  }
+}
+
 export function mediaDisplayLabel(path: string): string {
   const escaped = mediaName(path).replace(/[[\]\\]/g, '\\$&')
   const kind = mediaKind(path)

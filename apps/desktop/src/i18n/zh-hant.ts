@@ -1416,7 +1416,8 @@ export const zhHant = defineLocale({
     label: '工具',
     items: {
       chat: '聊天',
-      'tender-analyze': '標書分析'
+      'tender-analyze': '標書分析',
+      'report-generator': '報告產生器'
     }
   },
 
@@ -2275,7 +2276,11 @@ export const zhHant = defineLocale({
         web_extract: { done: '已讀取網頁', pending: '正在讀取網頁', pendingAction: '正在讀取' },
         web_search: { done: '已搜尋網頁', pending: '正在搜尋網頁', pendingAction: '正在搜尋' },
         write_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' }
-      }
+      },
+      reportReady: '報告已產生',
+      openWord: '開啟 Word',
+      openPdf: '開啟 PDF',
+      reportOpenFailed: '無法開啟報告'
     }
   },
 

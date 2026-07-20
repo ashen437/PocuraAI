@@ -3096,6 +3096,8 @@ $DocumentLibs = @(
     @{ Import = "ebooklib";             Spec = "ebooklib==0.20";              Label = "ebooklib (.epub)" }
     @{ Import = "bs4";                  Spec = "beautifulsoup4==4.13.5";      Label = "beautifulsoup4 (HTML)" }
     @{ Import = "lxml";                 Spec = "lxml==6.1.1";                 Label = "lxml (HTML parser backend)" }
+    @{ Import = "matplotlib";           Spec = "matplotlib==3.11.1";          Label = "matplotlib (Report Generator charts)" }
+    @{ Import = "reportlab";            Spec = "reportlab==5.0.0";            Label = "reportlab (Report Generator PDF)" }
 )
 
 function Install-DocumentLibs {

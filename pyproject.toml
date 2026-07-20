@@ -184,7 +184,10 @@ wecom = ["defusedxml==0.7.1"]
 cli = ["simple-term-menu==1.6.6"]
 tts-premium = ["elevenlabs==1.59.0"]
 # Document extraction / OCR fallbacks for tools/read_extract.py (the read_file
-# document path, and the desktop "Tender Analyze" batch Q&A workflow).
+# document path, the desktop "Tender Analyze" batch Q&A workflow), plus the
+# document-CREATION libraries behind tools/report_tool.py (the "Report
+# Generator" tools-rail entry: matplotlib renders charts, reportlab writes the
+# .pdf; python-docx above is reused for the .docx side, not duplicated here).
 #
 # Deliberately NOT in [all]: that list's policy (see the comment on `all`
 # below) is to keep out anything whose PyPI availability could break a fresh
@@ -223,6 +226,11 @@ documents = [
   # (4.15.x) while extract-msg is in this extra -- pip hard-fails the resolve.
   "beautifulsoup4==4.13.5",
   "lxml==6.1.1",
+  # Report Generator: chart rendering (Agg/headless backend, no GUI deps) and
+  # PDF composition. Two independent renderers over one shared content model
+  # rather than a docx->pdf conversion, so no LibreOffice/Java-class runtime.
+  "matplotlib==3.11.1",
+  "reportlab==5.0.0",
 ]
 voice = [
   # Local STT pulls in wheel-only transitive deps (ctranslate2, onnxruntime),

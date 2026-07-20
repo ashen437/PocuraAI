@@ -21,13 +21,14 @@ interface ToolRailItem {
   tool: ActiveTool
   /** Key into t.toolsRail.items — the rail is icon-only, so this is the
    *  tooltip and the accessible name. */
-  labelKey: 'chat' | 'tender-analyze'
+  labelKey: 'chat' | 'report-generator' | 'tender-analyze'
   icon: string
 }
 
 const RAIL_ITEMS: ToolRailItem[] = [
   { tool: null, labelKey: 'chat', icon: 'comment-discussion' },
-  { tool: 'tender-analyze', labelKey: 'tender-analyze', icon: 'checklist' }
+  { tool: 'tender-analyze', labelKey: 'tender-analyze', icon: 'checklist' },
+  { tool: 'report-generator', labelKey: 'report-generator', icon: 'pie-chart' }
 ]
 
 interface ToolsRailProps {
