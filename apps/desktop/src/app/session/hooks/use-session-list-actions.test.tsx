@@ -106,6 +106,40 @@ describe('useSessionListActions — rail mode scoping', () => {
     expect($sessions.get().map(s => s.id)).toEqual(['chat-1', 'chat-2'])
   })
 
+  it('clears the previous mode’s rows immediately, not when the fetch lands', async () => {
+    // The lag this guards: $sessions drives the rendered list, so leaving the
+    // old mode's rows in place across the (async) fetch flashes the wrong
+    // mode's chats for a second or two before "fixing itself".
+    const { result } = renderHook(() => useSessionListActions({ profileScope: ALL_PROFILES }))
+
+    await result.current.refreshSessions()
+    expect($sessions.get().map(s => s.id)).toEqual(['chat-1', 'chat-2'])
+
+    // Hold the next fetch open so we can observe the list mid-flight.
+    let release: (() => void) | undefined
+    const inFlight = new Promise<void>(resolve => {
+      release = resolve
+    })
+
+    mockList.mockImplementation(async () => {
+      await inFlight
+
+      return { offset: 0, profile_totals: {}, sessions: TENDER_ROWS, total: TENDER_ROWS.length } as Awaited<
+        ReturnType<typeof listAllProfileSessions>
+      >
+    })
+
+    setActiveTool('tender-analyze')
+    const pending = result.current.refreshSessions()
+
+    // Fetch has NOT resolved yet — the stale normal chats must already be gone.
+    expect($sessions.get()).toEqual([])
+
+    release?.()
+    await pending
+    expect($sessions.get().map(s => s.id)).toEqual(['tender-1'])
+  })
+
   it('still merges (not replaces) while paging within one mode', async () => {
     // Paging must keep mergeSessionPage's preservation behaviour — the scope
     // hasn't changed, so an in-flight/pinned row the page omits must survive.

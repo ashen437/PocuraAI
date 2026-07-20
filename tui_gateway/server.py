@@ -1677,7 +1677,26 @@ explicitly rather than inferring or filling the gap. A missed requirement can \
 disqualify a bid, so an admitted gap is worth more than a confident guess.
 - Quote exact figures, dates and clause references instead of paraphrasing them.
 - Scanned documents are read via OCR and can contain errors. Flag anything that \
-looks like an OCR artefact rather than silently correcting it."""
+looks like an OCR artefact rather than silently correcting it.
+
+Answering when MORE THAN ONE document is attached:
+- Open every attached document before answering. Never answer from a subset.
+- Answer the question separately for EACH document, in its own section headed by \
+that document's file name, in the order the documents were attached. Do not \
+collapse the documents into one blended answer.
+- Include a section for every document, even when it says nothing about the \
+question — write "Not addressed in this document" under its heading. A silently \
+omitted document reads as "no answer exists", which is a different claim.
+- Then close with a "Summary" section that consolidates the per-document answers \
+above: what they agree on, where they differ or conflict, and what is missing. \
+The summary must follow only from those answers — it introduces no new facts, and \
+it never replaces the per-document sections.
+- Conflicts between documents matter more than agreement: when two documents give \
+different answers (an addendum superseding an original, say), name both, name the \
+files, and say which appears to govern and why.
+
+With a single document attached, answer directly — no per-document sections and no \
+summary."""
 
 
 def _is_desktop_owned_source(source: str | None) -> bool:
@@ -9859,8 +9878,23 @@ def _desktop_attachment_dir(session: dict) -> Path:
             "No workspace selected. Choose a project folder in Pocura before "
             "attaching files -- files are not saved to a default location."
         )
-    root = Path(_session_cwd(session)).resolve() / ".pocura" / "desktop-attachments"
+    pocura_dir = Path(_session_cwd(session)).resolve() / ".pocura"
+    root = pocura_dir / "desktop-attachments"
     root.mkdir(parents=True, exist_ok=True)
+
+    # A workspace is usually a real checkout, and uploaded attachments (tender
+    # PDFs, screenshots) are session state, never code — so self-ignore rather
+    # than dumping untracked files into the user's `git status`. Repo-local
+    # .gitignore entries can't help here: the workspace is the USER's repo, not
+    # ours. Best-effort: a read-only or non-git workspace is not a reason to
+    # fail an attach.
+    marker = pocura_dir / ".gitignore"
+    if not marker.exists():
+        try:
+            marker.write_text("*\n", encoding="utf-8")
+        except OSError:
+            logger.debug("could not write %s", marker, exc_info=True)
+
     return root
 
 
@@ -9939,10 +9973,10 @@ def _stage_session_file_attachment(
       1. The path resolves to a file already INSIDE the session workspace — use
          it as-is (no copy, ``uploaded=False``).
       2. The path resolves to a gateway-visible file OUTSIDE the workspace — copy
-         it into ``.hermes/desktop-attachments/`` so the ``@file:`` ref resolves.
+         it into ``.pocura/desktop-attachments/`` so the ``@file:`` ref resolves.
       3. The path doesn't exist on the gateway (the common remote case: it's a
          path on the CLIENT's disk) — decode the uploaded ``data_url`` bytes and
-         write them into ``.hermes/desktop-attachments/``.
+         write them into ``.pocura/desktop-attachments/``.
 
     Returns ``(stored_path, uploaded)``.
     """

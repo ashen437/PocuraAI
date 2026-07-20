@@ -113,6 +113,14 @@ docs/superpowers/*
 # logs, and per-session caches are never artifacts of the codebase.
 .hermes/
 
+# Same deal under the Pocura name: desktop sessions stage attachments into
+# <workspace>/.pocura/desktop-attachments/, and the workspace is often a real
+# checkout. Uploaded tender documents / screenshots are session state, never
+# code. (The staging dir also self-ignores at runtime — see
+# _desktop_attachment_dir in tui_gateway/server.py — which covers workspaces
+# that aren't this repo. This entry covers agents operating in this checkout.)
+.pocura/
+
 # Desktop/bootstrap install marker written into the managed checkout root by the
 # bootstrap installer. It is Hermes-managed runtime state, never a code change —
 # ignore it so `hermes update`'s `git stash push --include-untracked` does not

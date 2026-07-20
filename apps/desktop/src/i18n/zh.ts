@@ -684,7 +684,11 @@ export const zh: Translations = {
       failedLoad: '设置加载失败',
       autosaveFailed: '自动保存失败',
       imported: '配置已导入',
-      invalidJson: '配置 JSON 无效'
+      invalidJson: '配置 JSON 无效',
+      browseFolder: '浏览文件夹',
+      changeFolder: '更改文件夹',
+      clearFolder: '清除',
+      browseFailed: '无法打开文件夹浏览器'
     },
     credentials: {
       pasteKey: '粘贴密钥',
@@ -2065,11 +2069,9 @@ export const zh: Translations = {
 
   workspaceSetup: {
     title: 'Choose your workspace',
-    description:
-      'Files Pocura uploads, creates, or edits land here. Pick a folder now, or use the suggested one below — you can change it later in Settings.',
-    browse: 'Browse...',
-    useThis: 'Use this folder',
-    saving: 'Saving...',
+    description: 'Files Pocura uploads, creates, or edits land here. Browse to any folder on your device to use as your workspace.',
+    browse: 'Browse for folder',
+    browsing: 'Browsing...',
     errorTitle: 'Could not set workspace folder',
     changeLater: 'You can change this anytime in Settings → Workspace.'
   },

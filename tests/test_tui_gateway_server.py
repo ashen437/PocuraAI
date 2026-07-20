@@ -4165,35 +4165,56 @@ def test_prompt_submit_expands_context_refs(monkeypatch):
     assert captured["prompt"] == "expanded prompt"
 
 
-def test_image_attach_appends_local_image(monkeypatch):
+def test_image_attach_stages_local_image_into_the_workspace(monkeypatch, tmp_path):
+    # image.attach stages the file into the session workspace (same as
+    # file.attach) rather than referencing wherever the user dragged it from,
+    # so the image must really exist on disk and the session must have a
+    # user-chosen workspace to stage into.
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    image = tmp_path / "cat.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nnot-a-real-png")
+
     fake_cli = types.ModuleType("cli")
     fake_cli._IMAGE_EXTENSIONS = {".png"}
     fake_cli._detect_file_drop = lambda raw: {
-        "path": Path("/tmp/cat.png"),
+        "path": image,
         "is_image": True,
         "remainder": "",
     }
     fake_cli._split_path_input = lambda raw: (raw, "")
-    fake_cli._resolve_attachment_path = lambda raw: Path("/tmp/cat.png")
+    fake_cli._resolve_attachment_path = lambda raw: image
 
-    server._sessions["sid"] = _session()
+    server._sessions["sid"] = _session(cwd=str(workspace), explicit_cwd=True, source="desktop")
     monkeypatch.setitem(sys.modules, "cli", fake_cli)
 
-    resp = server.handle_request(
-        {
-            "id": "1",
-            "method": "image.attach",
-            "params": {"session_id": "sid", "path": "/tmp/cat.png"},
-        }
-    )
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "image.attach",
+                "params": {"session_id": "sid", "path": str(image)},
+            }
+        )
 
-    assert resp["result"]["attached"] is True
-    assert resp["result"]["name"] == "cat.png"
-    assert len(server._sessions["sid"]["attached_images"]) == 1
+        assert resp["result"]["attached"] is True
+        assert resp["result"]["name"] == "cat.png"
+        assert len(server._sessions["sid"]["attached_images"]) == 1
+
+        # Staged a copy inside the workspace, not the original outside it.
+        staged = Path(resp["result"]["path"])
+        assert staged.parent == workspace.resolve() / ".pocura" / "desktop-attachments"
+        assert staged.read_bytes() == image.read_bytes()
+    finally:
+        server._sessions.pop("sid", None)
 
 
-def test_image_attach_accepts_unquoted_screenshot_path_with_spaces(monkeypatch):
-    screenshot = Path("/tmp/Screenshot 2026-04-21 at 1.04.43 PM.png")
+def test_image_attach_accepts_unquoted_screenshot_path_with_spaces(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    screenshot = tmp_path / "Screenshot 2026-04-21 at 1.04.43 PM.png"
+    screenshot.write_bytes(b"\x89PNG\r\n\x1a\nshot")
+
     fake_cli = types.ModuleType("cli")
     fake_cli._IMAGE_EXTENSIONS = {".png"}
     fake_cli._detect_file_drop = lambda raw: {
@@ -4202,26 +4223,30 @@ def test_image_attach_accepts_unquoted_screenshot_path_with_spaces(monkeypatch):
         "remainder": "",
     }
     fake_cli._split_path_input = lambda raw: (
-        "/tmp/Screenshot",
+        str(tmp_path / "Screenshot"),
         "2026-04-21 at 1.04.43 PM.png",
     )
     fake_cli._resolve_attachment_path = lambda raw: None
 
-    server._sessions["sid"] = _session()
+    server._sessions["sid"] = _session(cwd=str(workspace), explicit_cwd=True, source="desktop")
     monkeypatch.setitem(sys.modules, "cli", fake_cli)
 
-    resp = server.handle_request(
-        {
-            "id": "1",
-            "method": "image.attach",
-            "params": {"session_id": "sid", "path": str(screenshot)},
-        }
-    )
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "image.attach",
+                "params": {"session_id": "sid", "path": str(screenshot)},
+            }
+        )
 
-    assert resp["result"]["attached"] is True
-    assert resp["result"]["path"] == str(screenshot)
-    assert resp["result"]["remainder"] == ""
-    assert len(server._sessions["sid"]["attached_images"]) == 1
+        assert resp["result"]["attached"] is True
+        assert resp["result"]["remainder"] == ""
+        assert len(server._sessions["sid"]["attached_images"]) == 1
+        # The unquoted, space-bearing path still resolves to the right file.
+        assert Path(resp["result"]["path"]).name == screenshot.name
+    finally:
+        server._sessions.pop("sid", None)
 
 
 def test_file_attach_uploads_remote_file_into_session_workspace(monkeypatch, tmp_path):
@@ -4250,11 +4275,11 @@ def test_file_attach_uploads_remote_file_into_session_workspace(monkeypatch, tmp
             }
         )
 
-        stored = workspace / ".hermes" / "desktop-attachments" / "report.txt"
+        stored = workspace / ".pocura" / "desktop-attachments" / "report.txt"
         assert resp["result"]["attached"] is True
         assert resp["result"]["uploaded"] is True
         assert resp["result"]["path"] == str(stored)
-        assert resp["result"]["ref_text"] == "@file:.hermes/desktop-attachments/report.txt"
+        assert resp["result"]["ref_text"] == "@file:.pocura/desktop-attachments/report.txt"
         assert stored.read_text(encoding="utf-8") == "hello world"
     finally:
         server._sessions.pop("sid", None)
@@ -4283,10 +4308,10 @@ def test_file_attach_copies_gateway_visible_file_outside_workspace(monkeypatch, 
             }
         )
 
-        stored = workspace / ".hermes" / "desktop-attachments" / "outside.txt"
+        stored = workspace / ".pocura" / "desktop-attachments" / "outside.txt"
         assert resp["result"]["attached"] is True
         assert resp["result"]["uploaded"] is True
-        assert resp["result"]["ref_text"] == "@file:.hermes/desktop-attachments/outside.txt"
+        assert resp["result"]["ref_text"] == "@file:.pocura/desktop-attachments/outside.txt"
         assert stored.read_text(encoding="utf-8") == "outside workspace"
     finally:
         server._sessions.pop("sid", None)
@@ -4319,7 +4344,7 @@ def test_file_attach_uses_in_workspace_file_without_copying(monkeypatch, tmp_pat
         assert resp["result"]["uploaded"] is False
         assert resp["result"]["ref_text"] == "@file:data/exam.csv"
         # No copy: nothing staged under desktop-attachments.
-        assert not (workspace / ".hermes" / "desktop-attachments").exists()
+        assert not (workspace / ".pocura" / "desktop-attachments").exists()
     finally:
         server._sessions.pop("sid", None)
 
@@ -4377,7 +4402,7 @@ def test_file_attach_quotes_ref_with_spaces(monkeypatch, tmp_path):
         )
 
         assert resp["result"]["attached"] is True
-        assert resp["result"]["ref_text"] == "@file:`.hermes/desktop-attachments/my exam schedule.csv`"
+        assert resp["result"]["ref_text"] == "@file:`.pocura/desktop-attachments/my exam schedule.csv`"
     finally:
         server._sessions.pop("sid", None)
 
@@ -4593,28 +4618,57 @@ def test_complete_slash_surfaces_completer_error(monkeypatch):
     assert "no completer" in resp["error"]["message"]
 
 
-def test_input_detect_drop_attaches_image(monkeypatch):
+def _drop_session(tmp_path) -> Path:
+    """A desktop session with a real, user-chosen workspace.
+
+    input.detect_drop stages the dropped image into that workspace (same as
+    image.attach / file.attach), so these tests need a workspace that exists
+    and an explicit_cwd — without one the gateway refuses the attach rather
+    than falling back to a directory the user never picked.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    server._sessions["sid"] = _session(cwd=str(workspace), explicit_cwd=True, source="desktop")
+    return workspace
+
+
+def _staged_dir(workspace: Path) -> Path:
+    return workspace.resolve() / ".pocura" / "desktop-attachments"
+
+
+def test_input_detect_drop_attaches_image(monkeypatch, tmp_path):
+    image = tmp_path / "cat.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\ncat")
     fake_cli = types.ModuleType("cli")
     fake_cli._detect_file_drop = lambda raw: {
-        "path": Path("/tmp/cat.png"),
+        "path": image,
         "is_image": True,
         "remainder": "",
     }
+    # Staging resolves the path through cli as well (_resolve_gateway_attachment_path
+    # imports all three), so a fake `cli` that only stubs _detect_file_drop makes the
+    # import fail and the drop look like "file not found on gateway".
+    fake_cli._split_path_input = lambda raw: (raw, "")
+    fake_cli._resolve_attachment_path = lambda raw: image
 
-    server._sessions["sid"] = _session()
+    workspace = _drop_session(tmp_path)
     monkeypatch.setitem(sys.modules, "cli", fake_cli)
 
-    resp = server.handle_request(
-        {
-            "id": "1",
-            "method": "input.detect_drop",
-            "params": {"session_id": "sid", "text": "/tmp/cat.png"},
-        }
-    )
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "input.detect_drop",
+                "params": {"session_id": "sid", "text": str(image)},
+            }
+        )
 
-    assert resp["result"]["matched"] is True
-    assert resp["result"]["is_image"] is True
-    assert resp["result"]["text"] == "[User attached image: cat.png]"
+        assert resp["result"]["matched"] is True
+        assert resp["result"]["is_image"] is True
+        assert resp["result"]["text"] == "[User attached image: cat.png]"
+        assert Path(resp["result"]["path"]).parent == _staged_dir(workspace)
+    finally:
+        server._sessions.pop("sid", None)
 
 
 def test_input_detect_drop_path_with_spaces(tmp_path):
@@ -4623,23 +4677,29 @@ def test_input_detect_drop_path_with_spaces(tmp_path):
     img = tmp_path / "screenshot with spaces.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")  # valid PNG header
 
-    server._sessions["sid"] = _session()
+    workspace = _drop_session(tmp_path)
 
-    resp = server.handle_request(
-        {
-            "id": "2",
-            "method": "input.detect_drop",
-            "params": {"session_id": "sid", "text": str(img)},
-        }
-    )
+    try:
+        resp = server.handle_request(
+            {
+                "id": "2",
+                "method": "input.detect_drop",
+                "params": {"session_id": "sid", "text": str(img)},
+            }
+        )
 
-    assert resp["result"]["matched"] is True
-    assert resp["result"]["is_image"] is True
-    assert resp["result"]["path"] == str(img)
-    assert resp["result"]["text"] == f"[User attached image: {img.name}]"
-    # Verify attachment was recorded in the session
-    assert len(server._sessions["sid"]["attached_images"]) == 1
-    assert server._sessions["sid"]["attached_images"][0] == str(img)
+        assert resp["result"]["matched"] is True
+        assert resp["result"]["is_image"] is True
+        assert resp["result"]["text"] == f"[User attached image: {img.name}]"
+
+        # The drop is staged into the workspace, so the reported path is the
+        # staged copy — the space-bearing name must survive that round trip.
+        staged = Path(resp["result"]["path"])
+        assert staged.parent == _staged_dir(workspace)
+        assert staged.name == img.name
+        assert server._sessions["sid"]["attached_images"] == [str(staged)]
+    finally:
+        server._sessions.pop("sid", None)
 
 
 def test_input_detect_drop_path_with_spaces_and_remainder(tmp_path):
@@ -4647,23 +4707,29 @@ def test_input_detect_drop_path_with_spaces_and_remainder(tmp_path):
     img = tmp_path / "photo with space.jpg"
     img.write_bytes(b"\xff\xd8\xff" + b"fakejpeg")  # minimal-ish JPEG header
 
-    server._sessions["sid"] = _session()
+    workspace = _drop_session(tmp_path)
 
-    user_input = f"{img} describe this image"
-    resp = server.handle_request(
-        {
-            "id": "3",
-            "method": "input.detect_drop",
-            "params": {"session_id": "sid", "text": user_input},
-        }
-    )
+    try:
+        user_input = f"{img} describe this image"
+        resp = server.handle_request(
+            {
+                "id": "3",
+                "method": "input.detect_drop",
+                "params": {"session_id": "sid", "text": user_input},
+            }
+        )
 
-    assert resp["result"]["matched"] is True
-    assert resp["result"]["is_image"] is True
-    assert resp["result"]["path"] == str(img)
-    # Remainder becomes the text sent to the model
-    assert resp["result"]["text"] == "describe this image"
-    assert server._sessions["sid"]["attached_images"][0] == str(img)
+        assert resp["result"]["matched"] is True
+        assert resp["result"]["is_image"] is True
+        # Remainder becomes the text sent to the model
+        assert resp["result"]["text"] == "describe this image"
+
+        staged = Path(resp["result"]["path"])
+        assert staged.parent == _staged_dir(workspace)
+        assert staged.name == img.name
+        assert server._sessions["sid"]["attached_images"] == [str(staged)]
+    finally:
+        server._sessions.pop("sid", None)
 
 
 def test_rollback_restore_resolves_number_and_file_path():
@@ -7988,32 +8054,43 @@ def _attach_bytes_cli(monkeypatch):
     monkeypatch.setitem(sys.modules, "cli", fake_cli)
 
 
-def test_image_attach_bytes_writes_to_gateway_dir(monkeypatch, tmp_path):
-    """Remote client uploads base64 bytes; gateway writes them to its own disk."""
+def test_image_attach_bytes_writes_into_the_session_workspace(monkeypatch, tmp_path):
+    """Remote client uploads base64 bytes; the gateway writes them into the
+    session's own workspace.
+
+    These bytes have no original path (clipboard paste / remote upload), so the
+    workspace is the only place they can live that the user actually chose — the
+    old global HERMES_HOME/images dir put them outside every workspace, where
+    the agent's `@file:` refs and file tools couldn't reach them.
+    """
     _attach_bytes_cli(monkeypatch)
-    monkeypatch.setattr(server, "_hermes_home", tmp_path)
-    server._sessions["abx"] = _session()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    server._sessions["abx"] = _session(cwd=str(workspace), explicit_cwd=True, source="desktop")
 
-    resp = server.handle_request(
-        {
-            "id": "1",
-            "method": "image.attach_bytes",
-            "params": {
-                "session_id": "abx",
-                "content_base64": _PNG_1X1_B64,
-                "filename": "shot.png",
-            },
-        }
-    )
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "image.attach_bytes",
+                "params": {
+                    "session_id": "abx",
+                    "content_base64": _PNG_1X1_B64,
+                    "filename": "shot.png",
+                },
+            }
+        )
 
-    res = resp["result"]
-    assert res["attached"] is True
-    written = Path(res["path"])
-    assert written.is_file()
-    assert written.parent == tmp_path / "images"
-    assert written.read_bytes().startswith(b"\x89PNG")
-    assert len(server._sessions["abx"]["attached_images"]) == 1
-    assert res["bytes"] > 0
+        res = resp["result"]
+        assert res["attached"] is True
+        written = Path(res["path"])
+        assert written.is_file()
+        assert written.parent == workspace.resolve() / ".pocura" / "desktop-attachments"
+        assert written.read_bytes().startswith(b"\x89PNG")
+        assert len(server._sessions["abx"]["attached_images"]) == 1
+        assert res["bytes"] > 0
+    finally:
+        server._sessions.pop("abx", None)
 
 
 def test_image_attach_bytes_accepts_data_url_prefix(monkeypatch, tmp_path):
@@ -8875,3 +8952,117 @@ def test_get_usage_clamps_post_compression_sentinel():
     usage = server._get_usage(agent)
     assert "context_used" not in usage
     assert "context_percent" not in usage
+
+
+# ── Desktop tool sessions (Tender Analyze) ──────────────────────────────
+
+
+def test_tender_analyze_is_desktop_owned():
+    """The nastiest failure mode in the tools rail: a tool source the gateway
+    doesn't recognise as desktop-owned still works, but silently loses the
+    "no workspace selected -> refuse" guard, so its file writes fall back to
+    the OS home directory.
+    """
+    assert server._is_desktop_owned_source("desktop") is True
+    assert server._is_desktop_owned_source(server.TENDER_ANALYZE_SOURCE) is True
+    assert server._is_desktop_owned_source("TENDER-ANALYZE") is True  # case-insensitive
+
+    # Non-desktop surfaces own their own cwd and must NOT be gated.
+    for source in ("tui", "cli", "telegram", "cron", "", None):
+        assert server._is_desktop_owned_source(source) is False
+
+
+def test_tool_ephemeral_prompt_only_targets_tender_sessions():
+    assert server._tool_ephemeral_prompt(server.TENDER_ANALYZE_SOURCE) == server.TENDER_ANALYZE_SYSTEM_PROMPT
+    assert server._tool_ephemeral_prompt("TENDER-ANALYZE") == server.TENDER_ANALYZE_SYSTEM_PROMPT
+
+    # Every other surface keeps its stock system prompt.
+    for source in ("desktop", "tui", "telegram", "cron", "", None):
+        assert server._tool_ephemeral_prompt(source) is None
+
+
+def test_tender_prompt_demands_per_document_answers_and_a_summary():
+    """Guards the product requirement: a multi-file question is answered per
+    document and then summarised, rather than blended into one answer.
+    """
+    prompt = server.TENDER_ANALYZE_SYSTEM_PROMPT
+
+    assert "MORE THAN ONE document" in prompt
+    assert "Not addressed in this document" in prompt  # silent omission is a different claim
+    assert '"Summary" section' in prompt
+    assert "introduces no new facts" in prompt
+    # …and a single document must not be padded with sections it doesn't need.
+    assert "With a single document attached, answer directly" in prompt
+
+
+def test_tender_prompt_composes_after_the_configured_system_prompt(monkeypatch):
+    """The framing is APPENDED to the agent's configured system_prompt, never
+    passed as ephemeral_system_prompt= — that kwarg is already that variable's
+    destination (it carries agent.system_prompt + any preloaded skills prompt),
+    so assigning it directly would silently drop both.
+    """
+    configured = "USER CONFIGURED PROMPT"
+
+    def compose(system_prompt: str, source: str | None) -> str:
+        # Mirrors the composition in _make_agent.
+        tool_prompt = server._tool_ephemeral_prompt(source)
+        if tool_prompt:
+            system_prompt = "\n\n".join(p for p in (system_prompt, tool_prompt) if p).strip()
+        return system_prompt
+
+    tender = compose(configured, server.TENDER_ANALYZE_SOURCE)
+    assert tender.startswith(configured), "user's configured prompt must survive, and lead"
+    assert server.TENDER_ANALYZE_SYSTEM_PROMPT in tender
+    assert compose(configured, "desktop") == configured
+    assert compose("", server.TENDER_ANALYZE_SOURCE) == server.TENDER_ANALYZE_SYSTEM_PROMPT
+
+
+def test_tender_session_without_workspace_is_flagged_no_workspace(monkeypatch):
+    """A tender session with no user-chosen workspace must carry the same
+    no_workspace flag a plain desktop session does — that flag is what makes
+    file_tools refuse the write instead of guessing a directory.
+    """
+    captured: dict = {}
+
+    import tools.terminal_tool as terminal_tool
+
+    monkeypatch.setattr(
+        terminal_tool,
+        "register_task_env_overrides",
+        lambda task_id, overrides: captured.update({"task_id": task_id, "overrides": overrides}),
+    )
+    monkeypatch.setattr(server, "_terminal_task_cwd", lambda session: "/some/fallback")
+
+    server._register_session_cwd(
+        _session(source=server.TENDER_ANALYZE_SOURCE, explicit_cwd=False, cwd="/some/fallback")
+    )
+    assert captured["overrides"].get("no_workspace") is True
+
+    # With a real user-chosen workspace the guard must stay out of the way.
+    captured.clear()
+    server._register_session_cwd(
+        _session(source=server.TENDER_ANALYZE_SOURCE, explicit_cwd=True, cwd="/chosen/ws")
+    )
+    assert "no_workspace" not in captured["overrides"]
+
+    # A TUI session's cwd is a directory the user launched from — never gated.
+    captured.clear()
+    server._register_session_cwd(_session(source="tui", explicit_cwd=False, cwd="/launch/dir"))
+    assert "no_workspace" not in captured["overrides"]
+
+
+def test_tender_attachment_dir_refuses_without_a_workspace(tmp_path):
+    """Attachments stage into <cwd>/.pocura/desktop-attachments, so with no
+    chosen workspace the attach must fail loudly rather than write somewhere
+    the user never picked.
+    """
+    with pytest.raises(RuntimeError, match="No workspace selected"):
+        server._desktop_attachment_dir(
+            _session(source=server.TENDER_ANALYZE_SOURCE, explicit_cwd=False, cwd=str(tmp_path))
+        )
+
+    staged = server._desktop_attachment_dir(
+        _session(source=server.TENDER_ANALYZE_SOURCE, explicit_cwd=True, cwd=str(tmp_path))
+    )
+    assert staged.is_dir()
+    assert staged == tmp_path.resolve() / ".pocura" / "desktop-attachments"

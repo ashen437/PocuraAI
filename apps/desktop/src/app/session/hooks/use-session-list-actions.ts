@@ -196,17 +196,28 @@ export function useSessionListActions({ profileScope }: UseSessionListActionsArg
         ? { source: activeTool }
         : { excludeSources: SIDEBAR_EXCLUDED_SOURCES }
 
+      // Switching rail mode REPLACES the list; it never merges. mergeSessionPage
+      // deliberately preserves previous rows the server omitted (pinned,
+      // in-flight, active, just-settled) — correct while paging one scope, but
+      // across a mode switch those are exactly the rows from the mode we just
+      // left, so merging bleeds normal chats into Tender Analyze and back.
+      //
+      // Drop them NOW, synchronously, rather than after the fetch: the list is
+      // rendered from $sessions, so leaving the old mode's rows in place for the
+      // (second or two) round trip is a visible flash of the wrong mode's chats
+      // that "fixes itself" when the response lands. Clearing here shows the
+      // loading skeletons instead, which is what setSessionsLoading(true) above
+      // already promised.
+      const scopeChanged = lastFetchedToolRef.current !== activeTool
+      lastFetchedToolRef.current = activeTool
+
+      if (scopeChanged) {
+        setSessions([])
+      }
+
       const result = await listAllProfileSessions(limit, 1, 'exclude', 'recent', sessionProfile, sourceFilter)
 
       if (refreshSessionsRequestRef.current === requestId) {
-        // Switching rail mode REPLACES the list; it never merges. mergeSessionPage
-        // deliberately preserves previous rows the server omitted (pinned,
-        // in-flight, active, just-settled) — correct while paging one scope, but
-        // across a mode switch those are exactly the rows from the mode we just
-        // left, so merging bleeds normal chats into Tender Analyze and back.
-        const scopeChanged = lastFetchedToolRef.current !== activeTool
-        lastFetchedToolRef.current = activeTool
-
         setSessions(prev => (scopeChanged ? result.sessions : mergeSessionPage(prev, result.sessions, sessionsToKeep())))
         setSessionsTotal(typeof result.total === 'number' ? result.total : result.sessions.length)
         setSessionProfileTotals(result.profile_totals ?? {})

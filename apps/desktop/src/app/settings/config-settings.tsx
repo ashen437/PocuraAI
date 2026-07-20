@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { getElevenLabsVoices, getHermesConfigSchema, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
+import { selectDesktopPaths } from '@/lib/desktop-fs'
+import { FolderOpen } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
 import type { ConfigFieldSchema, HermesConfigRecord } from '@/types/hermes'
@@ -44,6 +46,59 @@ export function voiceFieldVisible(key: string, config: HermesConfigRecord): bool
   }
 
   return provider === String(getNested(config, `${domain}.provider`) ?? '')
+}
+
+// `terminal.cwd` is a filesystem path, but the generic schema-driven renderer
+// below has no notion of that -- every non-boolean/select/number/list field
+// falls through to a plain text <Input>, which reads as "type a folder path
+// here" even though nothing else on this page expects the user to hand-type
+// a directory. Special-cased to the same native-picker pattern used by the
+// "Default project directory" setting and the New Project dialog, so every
+// workspace-folder control in the app opens a real OS browse dialog, never a
+// text box.
+function WorkingDirectoryField({ value, onChange }: { value: string; onChange: (value: unknown) => void }) {
+  const { t } = useI18n()
+  const c = t.settings.config
+  const [busy, setBusy] = useState(false)
+
+  const browse = async () => {
+    setBusy(true)
+
+    try {
+      const [dir] = await selectDesktopPaths({
+        defaultPath: value || undefined,
+        directories: true,
+        multiple: false
+      })
+
+      if (dir) {
+        onChange(dir)
+      }
+    } catch (err) {
+      notifyError(err, c.browseFailed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {value && (
+        <span className="max-w-56 truncate font-mono text-[0.6875rem] text-muted-foreground" title={value}>
+          {value}
+        </span>
+      )}
+      <Button disabled={busy} onClick={() => void browse()} size="sm" type="button" variant="textStrong">
+        <FolderOpen className="size-3.5" />
+        {value ? c.changeFolder : c.browseFolder}
+      </Button>
+      {value && (
+        <Button disabled={busy} onClick={() => onChange('')} size="sm" type="button" variant="text">
+          {c.clearFolder}
+        </Button>
+      )}
+    </div>
+  )
 }
 
 function ConfigField({
@@ -169,6 +224,10 @@ function ConfigField({
         value={Array.isArray(value) ? value.join(', ') : String(value ?? '')}
       />
     )
+  }
+
+  if (schemaKey === 'terminal.cwd') {
+    return row(<WorkingDirectoryField onChange={onChange} value={String(value ?? '')} />)
   }
 
   if (typeof value === 'object' && value !== null) {

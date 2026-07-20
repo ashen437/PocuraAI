@@ -408,6 +408,10 @@ export interface Translations {
       autosaveFailed: string
       imported: string
       invalidJson: string
+      browseFolder: string
+      changeFolder: string
+      clearFolder: string
+      browseFailed: string
     }
     credentials: {
       pasteKey: string
@@ -1549,8 +1553,7 @@ export interface Translations {
     title: string
     description: string
     browse: string
-    useThis: string
-    saving: string
+    browsing: string
     errorTitle: string
     changeLater: string
   }

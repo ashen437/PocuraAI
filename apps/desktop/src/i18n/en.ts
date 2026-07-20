@@ -492,7 +492,11 @@ export const en: Translations = {
       failedLoad: 'Settings failed to load',
       autosaveFailed: 'Autosave failed',
       imported: 'Config imported',
-      invalidJson: 'Invalid config JSON'
+      invalidJson: 'Invalid config JSON',
+      browseFolder: 'Browse for folder',
+      changeFolder: 'Change folder',
+      clearFolder: 'Clear',
+      browseFailed: 'Could not open the folder browser'
     },
     credentials: {
       pasteKey: 'Paste key',
@@ -1892,11 +1896,9 @@ export const en: Translations = {
 
   workspaceSetup: {
     title: 'Choose your workspace',
-    description:
-      'Files Pocura uploads, creates, or edits land here. Pick a folder now, or use the suggested one below — you can change it later in Settings.',
-    browse: 'Browse...',
-    useThis: 'Use this folder',
-    saving: 'Saving...',
+    description: 'Files Pocura uploads, creates, or edits land here. Browse to any folder on your device to use as your workspace.',
+    browse: 'Browse for folder',
+    browsing: 'Browsing...',
     errorTitle: 'Could not set workspace folder',
     changeLater: 'You can change this anytime in Settings → Workspace.'
   },

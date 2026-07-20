@@ -593,7 +593,11 @@ export const zhHant = defineLocale({
       failedLoad: '設定載入失敗',
       autosaveFailed: '自動儲存失敗',
       imported: '設定已匯入',
-      invalidJson: '設定 JSON 無效'
+      invalidJson: '設定 JSON 無效',
+      browseFolder: '瀏覽資料夾',
+      changeFolder: '變更資料夾',
+      clearFolder: '清除',
+      browseFailed: '無法開啟資料夾瀏覽器'
     },
     credentials: {
       pasteKey: '貼上金鑰',

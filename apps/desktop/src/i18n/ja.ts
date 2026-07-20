@@ -605,7 +605,11 @@ export const ja = defineLocale({
       failedLoad: '設定の読み込みに失敗しました',
       autosaveFailed: '自動保存に失敗しました',
       imported: '設定をインポートしました',
-      invalidJson: '設定 JSON が無効です'
+      invalidJson: '設定 JSON が無効です',
+      browseFolder: 'フォルダを参照',
+      changeFolder: 'フォルダを変更',
+      clearFolder: 'クリア',
+      browseFailed: 'フォルダ選択を開けませんでした'
     },
     credentials: {
       pasteKey: 'キーを貼り付け',

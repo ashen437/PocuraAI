@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 
 import { BrandMark } from '@/components/brand-mark'
 import { Button } from '@/components/ui/button'
+import { Codicon } from '@/components/ui/codicon'
 import { useI18n } from '@/i18n'
 import { $desktopOnboarding } from '@/store/onboarding'
 
@@ -16,6 +17,15 @@ import { $desktopOnboarding } from '@/store/onboarding'
  * directory is persisted -- readDefaultProjectDir() returning non-null on a
  * later launch is itself the "already done" signal, so no separate
  * skip/seen flag is needed.
+ *
+ * Browse-only by design: an earlier version also showed the suggested path in
+ * a bordered, monospace box with a one-click "Use this folder" button. That
+ * box wasn't editable, but its styling read as a text field the user was
+ * meant to type into, and it competed with the actual folder-browser action.
+ * There is exactly one control now -- "Browse for folder" -- which opens the
+ * native OS directory dialog (main.ts's `defaultProjectDir:pick` handler,
+ * itself defaulted to the suggested location) so the user always picks a
+ * real folder on disk rather than typing or accepting a name they can't see.
  */
 export function WorkspaceSetupOverlay({ enabled }: { enabled: boolean }) {
   const { t } = useI18n()
@@ -23,7 +33,6 @@ export function WorkspaceSetupOverlay({ enabled }: { enabled: boolean }) {
   const onboarding = useStore($desktopOnboarding)
 
   const [status, setStatus] = useState<'checking' | 'hidden' | 'show'>('checking')
-  const [suggested, setSuggested] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,12 +55,7 @@ export function WorkspaceSetupOverlay({ enabled }: { enabled: boolean }) {
           return
         }
 
-        if (res?.dir) {
-          setStatus('hidden')
-        } else {
-          setSuggested(res?.suggestedDir || res?.defaultLabel || '')
-          setStatus('show')
-        }
+        setStatus(res?.dir ? 'hidden' : 'show')
       })
       .catch(() => {
         // No bridge (tests / older build) -- stay out of the way.
@@ -69,34 +73,19 @@ export function WorkspaceSetupOverlay({ enabled }: { enabled: boolean }) {
     return null
   }
 
-  const finish = async (dir: string) => {
-    if (!dir.trim()) {
-      return
-    }
-
-    setBusy(true)
-    setError(null)
-
-    try {
-      await window.hermesDesktop.settings.setDefaultProjectDir(dir)
-      setStatus('hidden')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const browse = async () => {
     setBusy(true)
     setError(null)
 
     try {
-      const res = await window.hermesDesktop.settings.pickDefaultProjectDir()
+      const picked = await window.hermesDesktop.settings.pickDefaultProjectDir()
 
-      if (!res.canceled && res.dir) {
-        await finish(res.dir)
+      if (picked.canceled || !picked.dir) {
+        return
       }
+
+      await window.hermesDesktop.settings.setDefaultProjectDir(picked.dir)
+      setStatus('hidden')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -111,24 +100,17 @@ export function WorkspaceSetupOverlay({ enabled }: { enabled: boolean }) {
         <h2 className="mt-4 text-xl font-semibold tracking-tight">{copy.title}</h2>
         <p className="mt-1.5 text-sm text-muted-foreground">{copy.description}</p>
 
-        <div className="mt-4 overflow-x-auto rounded-md border border-(--stroke-nous) px-3 py-2.5 font-mono text-[12px]">
-          {suggested}
-        </div>
-
         {error && (
-          <p className="mt-2 text-xs text-destructive">
+          <p className="mt-3 text-xs text-destructive">
             {copy.errorTitle}: {error}
           </p>
         )}
 
-        <p className="mt-4 text-xs text-muted-foreground">{copy.changeLater}</p>
-
-        <div className="mt-4 flex items-center justify-end gap-2">
-          <Button disabled={busy} onClick={() => void browse()} size="sm" variant="ghost">
-            {copy.browse}
-          </Button>
-          <Button disabled={busy} onClick={() => void finish(suggested)} size="sm" variant="default">
-            {busy ? copy.saving : copy.useThis}
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">{copy.changeLater}</p>
+          <Button disabled={busy} onClick={() => void browse()} size="sm" variant="default">
+            <Codicon name="folder-opened" size="0.875rem" />
+            {busy ? copy.browsing : copy.browse}
           </Button>
         </div>
       </div>
