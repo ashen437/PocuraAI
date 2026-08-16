@@ -231,6 +231,11 @@ documents = [
   # rather than a docx->pdf conversion, so no LibreOffice/Java-class runtime.
   "matplotlib==3.11.1",
   "reportlab==5.0.0",
+  # Research Agent: zero-config web search. tools/web_tools.py's "ddgs"
+  # backend keys availability purely off this package being importable
+  # (_ddgs_package_importable), so shipping it means web_search works out of
+  # the box with no API key -- paid backends (exa/firecrawl/...) stay optional.
+  "ddgs==9.14.4",
 ]
 voice = [
   # Local STT pulls in wheel-only transitive deps (ctranslate2, onnxruntime),

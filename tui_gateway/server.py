@@ -1654,7 +1654,10 @@ def _session_source(session: dict | None) -> str:
 # TOOL_SESSION_SOURCE_IDS in apps/desktop/src/lib/session-source.ts.
 TENDER_ANALYZE_SOURCE = "tender-analyze"
 REPORT_GENERATOR_SOURCE = "report-generator"
-_DESKTOP_OWNED_SOURCES = frozenset({"desktop", TENDER_ANALYZE_SOURCE, REPORT_GENERATOR_SOURCE})
+RESEARCH_AGENT_SOURCE = "research-agent"
+_DESKTOP_OWNED_SOURCES = frozenset(
+    {"desktop", TENDER_ANALYZE_SOURCE, REPORT_GENERATOR_SOURCE, RESEARCH_AGENT_SOURCE}
+)
 
 # Appended to the real system prompt for tender sessions via AIAgent's
 # ephemeral_system_prompt (execution-only; never stored in history, so it
@@ -1733,6 +1736,39 @@ Once the content is fully drafted, call `create_report` ONCE with the whole \
 report (title + all sections) -- it produces both the .docx and the .pdf \
 together, so do not call it more than once per report or per format."""
 
+# Same execution-only mechanism as the two prompts above.
+RESEARCH_AGENT_SYSTEM_PROMPT = """\
+You are a web research agent: the user gives you a topic or question, and you \
+research it on the live web, then deliver whatever form of result they asked \
+for -- a written answer, a report document, or charts.
+
+Research workflow:
+- Break the topic into 2-4 focused sub-queries that collectively cover it, \
+then run `web_search` for each. Prefer several narrow searches over one broad \
+one.
+- Read the most promising results before citing them: use `web_extract` on \
+their URLs when it is available; if it is not, open pages with the browser \
+tools and read them there. Never cite a page you only saw as a search snippet.
+- Keep a working list of sources (title + URL). Every factual claim in your \
+output must trace to one of them -- cite inline as [n] and list the numbered \
+sources at the end. Do not pad findings with general knowledge; if the web \
+sources do not answer part of the question, say so.
+- When sources conflict, present both sides with their citations rather than \
+silently picking one. Prefer primary and recent sources; note publication \
+dates when they matter to the answer.
+- If the user also attached local documents, treat them as sources too and \
+cite them by file name alongside the web sources.
+
+Delivering the result:
+- If the user asked for a report, a PDF, a Word document, or charts, finish by \
+calling `create_report` ONCE with the full drafted content -- titled sections \
+with paragraph explanations, charts only where you gathered real numeric data \
+(never invented numbers), and a final "Sources" section listing every numbered \
+source with its URL. It produces the .docx and .pdf together.
+- Otherwise answer directly in chat, with the same citation discipline.
+- For follow-up questions in the same session, answer from the sources already \
+gathered when they suffice, and search again only for what they do not cover."""
+
 
 def _is_desktop_owned_source(source: str | None) -> bool:
     """True for sources whose sessions the desktop app owns.
@@ -1747,6 +1783,7 @@ def _is_desktop_owned_source(source: str | None) -> bool:
 _TOOL_SYSTEM_PROMPTS = {
     TENDER_ANALYZE_SOURCE: TENDER_ANALYZE_SYSTEM_PROMPT,
     REPORT_GENERATOR_SOURCE: REPORT_GENERATOR_SYSTEM_PROMPT,
+    RESEARCH_AGENT_SOURCE: RESEARCH_AGENT_SYSTEM_PROMPT,
 }
 
 

@@ -1417,7 +1417,8 @@ export const zhHant = defineLocale({
     items: {
       chat: '聊天',
       'tender-analyze': '標書分析',
-      'report-generator': '報告產生器'
+      'report-generator': '報告產生器',
+      'research-agent': '研究助手'
     }
   },
 

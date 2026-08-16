@@ -1486,7 +1486,8 @@ export const en: Translations = {
     items: {
       chat: 'Chat',
       'tender-analyze': 'Tender Analyze',
-      'report-generator': 'Report Generator'
+      'report-generator': 'Report Generator',
+      'research-agent': 'Research Agent'
     }
   },
 

@@ -3098,6 +3098,7 @@ $DocumentLibs = @(
     @{ Import = "lxml";                 Spec = "lxml==6.1.1";                 Label = "lxml (HTML parser backend)" }
     @{ Import = "matplotlib";           Spec = "matplotlib==3.11.1";          Label = "matplotlib (Report Generator charts)" }
     @{ Import = "reportlab";            Spec = "reportlab==5.0.0";            Label = "reportlab (Report Generator PDF)" }
+    @{ Import = "ddgs";                 Spec = "ddgs==9.14.4";                Label = "ddgs (Research Agent web search)" }
 )
 
 function Install-DocumentLibs {

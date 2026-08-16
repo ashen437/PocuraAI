@@ -1665,6 +1665,7 @@ DOCUMENT_LIBS=(
     "lxml lxml==6.1.1|lxml (HTML parser backend)"
     "matplotlib matplotlib==3.11.1|matplotlib (Report Generator charts)"
     "reportlab reportlab==5.0.0|reportlab (Report Generator PDF)"
+    "ddgs ddgs==9.14.4|ddgs (Research Agent web search)"
 )
 
 install_document_libs() {

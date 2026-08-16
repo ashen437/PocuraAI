@@ -1664,7 +1664,8 @@ export const zh: Translations = {
     items: {
       chat: '对话',
       'tender-analyze': '标书分析',
-      'report-generator': '报告生成器'
+      'report-generator': '报告生成器',
+      'research-agent': '研究助手'
     }
   },
 

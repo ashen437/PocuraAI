@@ -1464,7 +1464,8 @@ export const ja = defineLocale({
     items: {
       chat: 'チャット',
       'tender-analyze': '入札分析',
-      'report-generator': 'レポート生成'
+      'report-generator': 'レポート生成',
+      'research-agent': 'リサーチエージェント'
     }
   },
 

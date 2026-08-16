@@ -227,7 +227,7 @@ def test_tool_session_sources_match_backend():
     assert frontend, "TOOL_SESSION_SOURCE_IDS is empty"
 
     py = (repo / "tui_gateway" / "server.py").read_text(encoding="utf-8")
-    owned = re.search(r"_DESKTOP_OWNED_SOURCES = frozenset\(\{(.*?)\}\)", py, re.S)
+    owned = re.search(r"_DESKTOP_OWNED_SOURCES = frozenset\(\s*\{(.*?)\}\s*\)", py, re.S)
     assert owned, "_DESKTOP_OWNED_SOURCES not found in server.py"
     members = [m.strip() for m in owned.group(1).split(",") if m.strip()]
 
