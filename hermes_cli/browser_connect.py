@@ -129,13 +129,20 @@ def chrome_debug_data_dir() -> str:
     return str(get_hermes_home() / "chrome-debug")
 
 
-def _chrome_debug_args(port: int) -> list[str]:
-    return [
+def _chrome_debug_args(port: int, headless: bool = False) -> list[str]:
+    args = [
         f"--remote-debugging-port={port}",
         f"--user-data-dir={chrome_debug_data_dir()}",
         "--no-first-run",
         "--no-default-browser-check",
     ]
+    if headless:
+        # "new" headless (not the legacy --headless) keeps full CDP screencast
+        # support (Page.startScreencast), which the legacy headless mode does
+        # not reliably expose. Same --user-data-dir as the interactive
+        # sign-in launch, so it inherits the same cookies/login state.
+        args.append("--headless=new")
+    return args
 
 
 def is_browser_debug_ready(url: str, timeout: float = 1.0) -> bool:
@@ -284,7 +291,7 @@ def _read_stderr_tail(path: str) -> str:
 
 
 def launch_chrome_debug(
-    port: int = DEFAULT_BROWSER_CDP_PORT, system: str | None = None
+    port: int = DEFAULT_BROWSER_CDP_PORT, system: str | None = None, headless: bool = False
 ) -> ChromeDebugLaunch:
     """Launch a Chromium-family browser with remote debugging, with diagnostics.
 
@@ -292,6 +299,12 @@ def launch_chrome_debug(
     before the CDP port opens (crash, singleton forward to an existing
     instance, bad profile dir) is logged — with exit code and a stderr tail —
     and the next candidate is tried.
+
+    ``headless=False`` (the default) opens a normal, visible window -- used
+    for the one-time interactive Google sign-in. ``headless=True`` launches
+    the SAME persistent profile (chrome_debug_data_dir()) without a visible
+    window, for actual agent use once sign-in is done; cookies/login state
+    carry over either way since both point at the same --user-data-dir.
     """
     system = system or platform.system()
     result = ChromeDebugLaunch()
@@ -308,7 +321,7 @@ def launch_chrome_debug(
         try:
             with open(stderr_path, "wb") as stderr_file:
                 proc = subprocess.Popen(
-                    [candidate, *_chrome_debug_args(port)],
+                    [candidate, *_chrome_debug_args(port, headless=headless)],
                     stdout=subprocess.DEVNULL,
                     stderr=stderr_file,
                     **_detach_kwargs(system),

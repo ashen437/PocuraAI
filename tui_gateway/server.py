@@ -179,6 +179,8 @@ _LONG_HANDLERS = frozenset(
     {
         "billing.step_up",
         "browser.manage",
+        "browser.screencast.start",
+        "browser.screencast.stop",
         "cli.exec",
         # Completion RPCs run inline on the reader thread by default, but both
         # can block it for seconds: complete.path spawns `git ls-files` and
@@ -13849,10 +13851,128 @@ def _(rid, params: dict) -> dict:
     if action == "disconnect":
         return _browser_disconnect(rid)
 
+    if action == "setup_profile":
+        return _browser_setup_profile(rid)
+
     if action != "connect":
         return _err(rid, 4015, f"unknown action: {action}")
 
     return _browser_connect(rid, params)
+
+
+def _browser_setup_profile(rid) -> dict:
+    """One-time interactive Google sign-in for the agent's dedicated Chrome
+    profile (Settings -> Agent browser -> "Connect Google account").
+
+    Launches the SAME persistent profile /browser connect uses
+    (chrome_debug_data_dir()), but visibly -- the user signs into Google in
+    the window that opens. On success, persists browser.cdp_url so every
+    future session (this process and after a restart) transparently attaches
+    to that signed-in profile; tools/browser_tool.py's
+    _ensure_local_chrome_debug_running then auto-launches it headlessly for
+    actual agent use once sign-in is done.
+    """
+    from hermes_cli.browser_connect import (
+        DEFAULT_BROWSER_CDP_PORT,
+        DEFAULT_BROWSER_CDP_URL,
+        is_browser_debug_ready,
+        launch_chrome_debug,
+    )
+    from tools.browser_tool import cleanup_all_browsers
+
+    if is_browser_debug_ready(DEFAULT_BROWSER_CDP_URL, timeout=1.0):
+        return _err(
+            rid,
+            5031,
+            "The agent's Chrome profile is already running. Close that window "
+            "before starting setup again.",
+        )
+
+    launch = launch_chrome_debug(DEFAULT_BROWSER_CDP_PORT, headless=False)
+    if not launch.launched:
+        hint = launch.hint or "No supported Chromium-family browser was found."
+        return _err(rid, 5031, hint)
+
+    ready = False
+    for _ in range(20):
+        time.sleep(0.5)
+        if is_browser_debug_ready(DEFAULT_BROWSER_CDP_URL, timeout=1.0):
+            ready = True
+            break
+    if not ready:
+        return _err(rid, 5031, f"Chrome launched but never opened the debug port at {DEFAULT_BROWSER_CDP_URL}.")
+
+    cfg = _load_cfg()
+    browser_cfg = cfg.setdefault("browser", {})
+    if not isinstance(browser_cfg, dict):
+        browser_cfg = {}
+        cfg["browser"] = browser_cfg
+    browser_cfg["cdp_url"] = DEFAULT_BROWSER_CDP_URL
+    _save_cfg(cfg)
+
+    os.environ["BROWSER_CDP_URL"] = DEFAULT_BROWSER_CDP_URL
+    cleanup_all_browsers()
+
+    return _ok(rid, {"connected": True, "url": DEFAULT_BROWSER_CDP_URL})
+
+
+@method("browser.screencast.start")
+def _(rid, params: dict) -> dict:
+    """Start streaming live browser frames to the desktop's embedded viewer.
+
+    Frames arrive as ``event`` frames (``type: "browser.screencast.frame"``)
+    scoped to ``session_id`` via the existing async event channel, not as
+    part of this RPC's response. Requires a CDP supervisor already attached
+    for ``task_id`` (i.e. the agent has navigated at least once in this
+    task) -- there is deliberately no auto-navigate-to-blank-page here.
+    """
+    sid = str(params.get("session_id") or "")
+    if not sid:
+        return _err(rid, 4015, "session_id is required")
+    # Tool calls resolve their CDP supervisor by task_id, and for a real
+    # desktop chat with a CDP override active (the only path that ever has a
+    # supervisor at all -- see _ensure_cdp_supervisor) that task_id IS the
+    # chat's session_id: gateway/run.py passes task_id=session_id into
+    # agent.run_conversation, which threads it into every tool call's kwargs.
+    # "default" is only what task_id collapses to when no session_id was
+    # available at all -- so session_id is the right default here, not the
+    # literal string "default".
+    task_id = str(params.get("task_id") or sid)
+
+    try:
+        from tools.browser_supervisor import SUPERVISOR_REGISTRY
+    except Exception as exc:
+        return _err(rid, 5031, f"browser supervisor unavailable: {exc}")
+
+    supervisor = SUPERVISOR_REGISTRY.get(task_id)
+    if supervisor is None:
+        return _err(
+            rid, 5031, "No active browser session for this task yet -- navigate somewhere first."
+        )
+
+    def _on_frame(data: str, metadata: dict) -> None:
+        _emit("browser.screencast.frame", sid, {"data": data, "metadata": metadata})
+
+    result = supervisor.start_screencast(_on_frame)
+    if not result.get("ok"):
+        return _err(rid, 5031, str(result.get("error") or "failed to start screencast"))
+    return _ok(rid, {"started": True})
+
+
+@method("browser.screencast.stop")
+def _(rid, params: dict) -> dict:
+    sid = str(params.get("session_id") or "")
+    task_id = str(params.get("task_id") or sid or "default")
+
+    try:
+        from tools.browser_supervisor import SUPERVISOR_REGISTRY
+    except Exception:
+        return _ok(rid, {"stopped": True})
+
+    supervisor = SUPERVISOR_REGISTRY.get(task_id)
+    if supervisor is not None:
+        supervisor.stop_screencast()
+    return _ok(rid, {"stopped": True})
 
 
 def _browser_connect(rid, params: dict) -> dict:

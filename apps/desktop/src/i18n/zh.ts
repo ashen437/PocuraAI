@@ -688,7 +688,14 @@ export const zh: Translations = {
       browseFolder: '浏览文件夹',
       changeFolder: '更改文件夹',
       clearFolder: '清除',
-      browseFailed: '无法打开文件夹浏览器'
+      browseFailed: '无法打开文件夹浏览器',
+      browserConnect: '连接 Google 账号',
+      browserReconnect: '重新连接 Google 账号',
+      browserDisconnect: '断开连接',
+      browserConnectFailed: '无法设置代理浏览器',
+      browserConnectedNote: '代理将使用这个专用的、已登录的 Chrome 配置文件进行浏览。',
+      browserTosNote: '将打开一个 Chrome 窗口供你登录。请尽量使用备用 Google 账号——自动化使用已登录账号仍受 Google 服务条款约束。',
+      browserRemoteUnavailable: '代理浏览器运行在托管网关的计算机上，因此远程连接下不可用。'
     },
     credentials: {
       pasteKey: '粘贴密钥',
@@ -2314,6 +2321,10 @@ export const zh: Translations = {
     addToChat: '添加到对话'
   },
 
+  browserLiveView: {
+    title: '代理浏览器',
+    connecting: '连接中…'
+  },
   preview: {
     tab: '预览',
     closeTab: label => `关闭 ${label}`,

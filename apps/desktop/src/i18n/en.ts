@@ -496,7 +496,15 @@ export const en: Translations = {
       browseFolder: 'Browse for folder',
       changeFolder: 'Change folder',
       clearFolder: 'Clear',
-      browseFailed: 'Could not open the folder browser'
+      browseFailed: 'Could not open the folder browser',
+      browserConnect: 'Connect Google account',
+      browserReconnect: 'Reconnect Google account',
+      browserDisconnect: 'Disconnect',
+      browserConnectFailed: 'Could not set up the agent browser',
+      browserConnectedNote: 'The agent browses using this dedicated, signed-in Chrome profile.',
+      browserTosNote:
+        "A Chrome window will open for you to sign in. Use a secondary Google account if possible — automated use of a signed-in account is still subject to Google's terms of service.",
+      browserRemoteUnavailable: 'The agent browser runs on the machine hosting the gateway, so this is unavailable for remote connections.'
     },
     credentials: {
       pasteKey: 'Paste key',
@@ -2146,6 +2154,10 @@ export const en: Translations = {
     addToChat: 'Add to chat'
   },
 
+  browserLiveView: {
+    title: 'Agent browser',
+    connecting: 'Connecting…'
+  },
   preview: {
     tab: 'Preview',
     closeTab: label => `Close ${label}`,

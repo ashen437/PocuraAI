@@ -81,6 +81,9 @@ export type GatewayEventPayload = {
   label?: string
   index?: number
   aggregator?: string
+  // browser.screencast.frame — base64 JPEG frame + CDP frame metadata
+  data?: string
+  metadata?: Record<string, unknown>
 }
 
 export function textPart(text: string): ChatMessagePart {

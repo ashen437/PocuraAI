@@ -412,6 +412,13 @@ export interface Translations {
       changeFolder: string
       clearFolder: string
       browseFailed: string
+      browserConnect: string
+      browserReconnect: string
+      browserDisconnect: string
+      browserConnectFailed: string
+      browserConnectedNote: string
+      browserTosNote: string
+      browserRemoteUnavailable: string
     }
     credentials: {
       pasteKey: string
@@ -1781,6 +1788,10 @@ export interface Translations {
     addToChat: string
   }
 
+  browserLiveView: {
+    title: string
+    connecting: string
+  }
   preview: {
     tab: string
     closeTab: (label: string) => string

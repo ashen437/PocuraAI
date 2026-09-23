@@ -26,7 +26,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import websockets
 from websockets.asyncio.client import ClientConnection
@@ -344,6 +344,15 @@ class CDPSupervisor:
         # Monotonic id generator for dialogs (human-readable in snapshots).
         self._dialog_seq = 0
 
+        # Live-view screencast. Set while a consumer (the desktop's embedded
+        # browser pane) is watching; cleared on stop_screencast()/supervisor
+        # stop. Invoked on the supervisor's own loop thread from
+        # _on_screencast_frame — callers must keep it fast and
+        # non-blocking, since frames are acked immediately after the
+        # callback runs to satisfy CDP's flow-control contract regardless of
+        # what the callback does with the frame.
+        self._screencast_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+
     # ── Public sync API ──────────────────────────────────────────────────────
 
     def start(self, timeout: float = 15.0) -> None:
@@ -603,6 +612,99 @@ class CDPSupervisor:
             value = result_obj.get("description") or result_obj.get("unserializableValue")
 
         return {"ok": True, "result": value, "result_type": result_type}
+
+    def start_screencast(
+        self,
+        on_frame: Callable[[str, Dict[str, Any]], None],
+        *,
+        image_format: str = "jpeg",
+        quality: int = 60,
+        max_width: int = 1024,
+        max_height: int = 768,
+        timeout: float = 10.0,
+    ) -> Dict[str, Any]:
+        """Start a CDP screencast on the attached page.
+
+        ``on_frame(base64_data, metadata)`` is invoked on the supervisor's own
+        loop thread for every frame Chrome sends — keep it fast (e.g. just
+        forward the bytes to a queue/socket) since the next frame isn't
+        requested from Chrome until the current one is acked, and the ack
+        happens right after this callback returns.
+
+        Idempotent: calling this again while already screencasting just
+        replaces the callback (e.g. a reconnecting desktop client), it does
+        not double-subscribe with Chrome.
+        """
+        with self._state_lock:
+            if not self._active:
+                return {"ok": False, "error": "supervisor is not active"}
+            session_id = self._page_session_id
+
+        if not session_id:
+            return {"ok": False, "error": "supervisor has no attached page session"}
+
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            return {"ok": False, "error": "supervisor loop is not running"}
+
+        already_running = self._screencast_callback is not None
+        self._screencast_callback = on_frame
+
+        if already_running:
+            return {"ok": True}
+
+        async def _do_start() -> Dict[str, Any]:
+            return await self._cdp(
+                "Page.startScreencast",
+                {
+                    "format": image_format,
+                    "quality": quality,
+                    "maxWidth": max_width,
+                    "maxHeight": max_height,
+                },
+                session_id=session_id,
+                timeout=timeout,
+            )
+
+        try:
+            from agent.async_utils import safe_schedule_threadsafe
+
+            fut = safe_schedule_threadsafe(_do_start(), loop)
+            if fut is None:
+                self._screencast_callback = None
+                return {"ok": False, "error": "Browser supervisor loop unavailable"}
+            fut.result(timeout=timeout + 1)
+        except Exception as e:
+            self._screencast_callback = None
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+        return {"ok": True}
+
+    def stop_screencast(self, timeout: float = 10.0) -> Dict[str, Any]:
+        """Stop an active screencast. Safe to call even if none is running."""
+        self._screencast_callback = None
+        loop = self._loop
+        with self._state_lock:
+            session_id = self._page_session_id
+
+        if loop is None or not loop.is_running() or not session_id:
+            return {"ok": True}
+
+        async def _do_stop() -> Dict[str, Any]:
+            return await self._cdp("Page.stopScreencast", {}, session_id=session_id, timeout=timeout)
+
+        try:
+            from agent.async_utils import safe_schedule_threadsafe
+
+            fut = safe_schedule_threadsafe(_do_stop(), loop)
+            if fut is not None:
+                fut.result(timeout=timeout + 1)
+        except Exception:
+            # Best-effort — the callback is already cleared above, so even if
+            # the CDP stop call itself fails, we've stopped forwarding frames.
+            pass
+
+        return {"ok": True}
 
     # ── Supervisor loop internals ────────────────────────────────────────────
 
@@ -897,6 +999,8 @@ class CDPSupervisor:
             self._on_console(params, level_from="api")
         elif method == "Runtime.exceptionThrown":
             self._on_console(params, level_from="exception")
+        elif method == "Page.screencastFrame":
+            await self._on_screencast_frame(params, session_id)
 
     async def _on_dialog_opening(
         self, params: Dict[str, Any], session_id: Optional[str]
@@ -1368,6 +1472,43 @@ class CDPSupervisor:
             if len(self._console_events) > CONSOLE_HISTORY_MAX * 2:
                 # Keep last CONSOLE_HISTORY_MAX; allow 2x slack to reduce churn.
                 self._console_events = self._console_events[-CONSOLE_HISTORY_MAX:]
+
+    async def _on_screencast_frame(self, params: Dict[str, Any], session_id: Optional[str]) -> None:
+        """Forward a screencast frame to the live-view consumer, then ack it.
+
+        ``params["sessionId"]`` here is CDP's screencast-frame ack id (a small
+        integer scoped to ``Page.startScreencast``) — unrelated to the CDP
+        *target* session id (a string) received as this function's
+        ``session_id`` argument, which is what routes the ack command to the
+        right attached target. Mixing the two up sends the ack nowhere and
+        Chrome silently stops sending frames.
+
+        Acking happens unconditionally (even with no callback registered, and
+        even if the callback raises) so a slow/erroring consumer never stalls
+        the screencast for whoever reconnects next. The ack itself is fired
+        off-loop via ``create_task`` rather than awaited here — same reason as
+        ``_enable_child_domains``: this coroutine runs inline inside
+        ``_read_loop``'s dispatch of ``_on_event``, and the ack's reply can
+        only ever be delivered by that same read loop, so awaiting it here
+        would deadlock the whole supervisor on the very first frame.
+        """
+        callback = self._screencast_callback
+        data = params.get("data")
+        if callback is not None and data:
+            try:
+                callback(data, params.get("metadata") or {})
+            except Exception:
+                logger.debug("screencast frame callback failed", exc_info=True)
+
+        frame_ack_id = params.get("sessionId")
+        if frame_ack_id is not None:
+            asyncio.create_task(self._ack_screencast_frame(frame_ack_id, session_id or self._page_session_id))
+
+    async def _ack_screencast_frame(self, frame_ack_id: int, session_id: Optional[str]) -> None:
+        try:
+            await self._cdp("Page.screencastFrameAck", {"sessionId": frame_ack_id}, session_id=session_id)
+        except Exception:
+            logger.debug("screencast frame ack failed", exc_info=True)
 
     # ── Frame tree building (bounded) ───────────────────────────────────────
 

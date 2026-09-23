@@ -1,3 +1,4 @@
+import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import type { ChangeEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -11,14 +12,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { getElevenLabsVoices, getHermesConfigSchema, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { selectDesktopPaths } from '@/lib/desktop-fs'
-import { FolderOpen } from '@/lib/icons'
+import { FolderOpen, Globe } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
+import { $connection } from '@/store/session'
 import type { ConfigFieldSchema, HermesConfigRecord } from '@/types/hermes'
 
+import { useGatewayRequest } from '../gateway/hooks/use-gateway-request'
 import { setHermesConfigCache, useHermesConfigRecord } from '../hooks/use-config-record'
 import { useOnProfileSwitch } from '../hooks/use-on-profile-switch'
 import { PanelEmpty } from '../overlays/panel'
+import type { BrowserManageResponse } from '../types'
 
 import { CONTROL_TEXT, EMPTY_SELECT_VALUE, FIELD_DESCRIPTIONS, FIELD_LABELS, SECTIONS } from './constants'
 import { fieldCopyForSchemaKey } from './field-copy'
@@ -97,6 +101,71 @@ function WorkingDirectoryField({ value, onChange }: { value: string; onChange: (
           {c.clearFolder}
         </Button>
       )}
+    </div>
+  )
+}
+
+// `browser.cdp_url` stores whatever CDP endpoint the agent's browser tools
+// attach to. When it points at the agent's own dedicated Chrome profile
+// (set only via the setup_profile RPC below, never hand-typed) this renders
+// a connect/disconnect control instead of a raw URL text box, matching the
+// pattern used for `terminal.cwd` above.
+function BrowserProfileField({ value, onChange }: { value: string; onChange: (value: unknown) => void }) {
+  const { t } = useI18n()
+  const c = t.settings.config
+  const { requestGateway } = useGatewayRequest()
+  const connection = useStore($connection)
+  const [busy, setBusy] = useState(false)
+  const connected = Boolean(value.trim())
+  const isRemote = connection?.mode === 'remote'
+
+  const connect = async () => {
+    setBusy(true)
+
+    try {
+      const result = await requestGateway<BrowserManageResponse>('browser.manage', { action: 'setup_profile' })
+
+      if (result?.connected && result.url) {
+        onChange(result.url)
+      }
+    } catch (err) {
+      notifyError(err, c.browserConnectFailed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async () => {
+    setBusy(true)
+
+    try {
+      await requestGateway('browser.manage', { action: 'disconnect' })
+      onChange('')
+    } catch (err) {
+      notifyError(err, c.browserConnectFailed)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (isRemote) {
+    return <p className="text-xs text-muted-foreground">{c.browserRemoteUnavailable}</p>
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <Button disabled={busy} onClick={() => void connect()} size="sm" type="button" variant="textStrong">
+          <Globe className="size-3.5" />
+          {connected ? c.browserReconnect : c.browserConnect}
+        </Button>
+        {connected && (
+          <Button disabled={busy} onClick={() => void disconnect()} size="sm" type="button" variant="text">
+            {c.browserDisconnect}
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{connected ? c.browserConnectedNote : c.browserTosNote}</p>
     </div>
   )
 }
@@ -228,6 +297,10 @@ function ConfigField({
 
   if (schemaKey === 'terminal.cwd') {
     return row(<WorkingDirectoryField onChange={onChange} value={String(value ?? '')} />)
+  }
+
+  if (schemaKey === 'browser.cdp_url') {
+    return row(<BrowserProfileField onChange={onChange} value={String(value ?? '')} />)
   }
 
   if (typeof value === 'object' && value !== null) {

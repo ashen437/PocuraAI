@@ -609,7 +609,14 @@ export const ja = defineLocale({
       browseFolder: 'フォルダを参照',
       changeFolder: 'フォルダを変更',
       clearFolder: 'クリア',
-      browseFailed: 'フォルダ選択を開けませんでした'
+      browseFailed: 'フォルダ選択を開けませんでした',
+      browserConnect: 'Google アカウントを接続',
+      browserReconnect: 'Google アカウントを再接続',
+      browserDisconnect: '切断',
+      browserConnectFailed: 'エージェントブラウザの設定に失敗しました',
+      browserConnectedNote: 'エージェントはこの専用のサインイン済み Chrome プロファイルでブラウズします。',
+      browserTosNote: 'サインイン用に Chrome ウィンドウが開きます。可能であればサブの Google アカウントを使用してください — サインイン済みアカウントの自動操作は Google の利用規約の対象です。',
+      browserRemoteUnavailable: 'エージェントブラウザはゲートウェイをホストするマシン上で動作するため、リモート接続では利用できません。'
     },
     credentials: {
       pasteKey: 'キーを貼り付け',
@@ -2115,6 +2122,10 @@ export const ja = defineLocale({
     addToChat: 'チャットに追加'
   },
 
+  browserLiveView: {
+    title: 'エージェントブラウザ',
+    connecting: '接続中…'
+  },
   preview: {
     tab: 'プレビュー',
     closeTab: label => `${label} を閉じる`,

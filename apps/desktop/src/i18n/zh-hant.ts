@@ -597,7 +597,14 @@ export const zhHant = defineLocale({
       browseFolder: '瀏覽資料夾',
       changeFolder: '變更資料夾',
       clearFolder: '清除',
-      browseFailed: '無法開啟資料夾瀏覽器'
+      browseFailed: '無法開啟資料夾瀏覽器',
+      browserConnect: '連接 Google 帳號',
+      browserReconnect: '重新連接 Google 帳號',
+      browserDisconnect: '中斷連接',
+      browserConnectFailed: '無法設定代理瀏覽器',
+      browserConnectedNote: '代理將使用這個專用、已登入的 Chrome 設定檔進行瀏覽。',
+      browserTosNote: '將開啟一個 Chrome 視窗供你登入。請盡量使用備用 Google 帳號——自動化使用已登入帳號仍受 Google 服務條款約束。',
+      browserRemoteUnavailable: '代理瀏覽器執行於託管閘道的電腦上，因此遠端連線時無法使用。'
     },
     credentials: {
       pasteKey: '貼上金鑰',
@@ -2053,6 +2060,10 @@ export const zhHant = defineLocale({
     addToChat: '新增至聊天'
   },
 
+  browserLiveView: {
+    title: '代理瀏覽器',
+    connecting: '連線中…'
+  },
   preview: {
     tab: '預覽',
     closeTab: label => `關閉 ${label}`,

@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { type MutableRefObject, useCallback } from 'react'
 
+import { writeScreencastFrame } from '@/app/chat/browser-live-view/screencast-stream'
 import { writeAgentTerminalChunk } from '@/app/right-sidebar/terminal/agent-terminal-stream'
 import { readActiveTerminal } from '@/app/right-sidebar/terminal/buffer'
 import { closeAgentTerminalByProc } from '@/app/right-sidebar/terminal/terminals'
@@ -11,6 +12,12 @@ import { playCompletionSound } from '@/lib/completion-sound'
 import { gatewayEventRequiresSessionId } from '@/lib/gateway-events'
 import { triggerHaptic } from '@/lib/haptics'
 import { isProviderSetupErrorMessage } from '@/lib/provider-setup-errors'
+import {
+  clearScreencastRequested,
+  hasRequestedScreencast,
+  markScreencastRequested,
+  openBrowserLiveView
+} from '@/store/browser-live-view'
 import { clearClarifyRequest, setClarifyRequest } from '@/store/clarify'
 import { setSessionCompacting } from '@/store/compaction'
 import { refreshBackgroundProcesses } from '@/store/composer-status'
@@ -39,6 +46,7 @@ import {
 import { clearSessionSubagents, pruneDelegateFallbackSubagents, upsertSubagent } from '@/store/subagents'
 import { clearActiveSessionTodos } from '@/store/todos'
 import { recordToolDiff } from '@/store/tool-diffs'
+import { $activeTool } from '@/store/tools'
 import { reportInstallMethodWarning } from '@/store/updates'
 import { notifyWorkspaceChanged, toolMayMutateFiles } from '@/store/workspace-events'
 import type { RpcEvent } from '@/types/hermes'
@@ -369,6 +377,44 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
         if (isActiveEvent) {
           setPetActivity({ reasoning: false, toolRunning: true })
         }
+
+        // A browser tool just started in a Research Agent chat -- pop open the
+        // live-view pane and ask the gateway to start streaming frames for it,
+        // the same way Claude Code surfaces what its browser tool is doing.
+        // Scoped to Research Agent only (not Normal Chat / Tender Analyze /
+        // Report Generator, which can also call browser tools but shouldn't
+        // pop a pane open uninvited). Only for the active session (a
+        // background thread's browser use shouldn't steal focus).
+        if (
+          isActiveEvent &&
+          $activeTool.get() === 'research-agent' &&
+          typeof payload?.name === 'string' &&
+          payload.name.startsWith('browser_') &&
+          !hasRequestedScreencast(sessionId)
+        ) {
+          // Mark before the round-trip so a burst of tool.start events (one per
+          // browser_* call) doesn't fire the RPC repeatedly while the first
+          // request is still in flight. But the CDP supervisor doesn't exist
+          // until browser_navigate's own handler creates it mid-execution --
+          // the very first browser_* tool.start in a session fires before that,
+          // so start_screencast legitimately fails here. Un-mark on failure so
+          // the NEXT browser_* tool.start (there's always at least one more,
+          // since navigate is followed by snapshot/click/etc.) retries once the
+          // supervisor is actually up, instead of latching a permanent no-op.
+          markScreencastRequested(sessionId)
+          openBrowserLiveView(sessionId)
+          $gateway
+            .get()
+            ?.request<{ started?: boolean }>('browser.screencast.start', { session_id: sessionId })
+            .then(result => {
+              if (!result?.started) {
+                clearScreencastRequested(sessionId)
+              }
+            })
+            .catch(() => {
+              clearScreencastRequested(sessionId)
+            })
+        }
       } else if (event.type === 'tool.complete') {
         if (sessionId) {
           flushQueuedDeltas(sessionId)
@@ -545,6 +591,12 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
             request_id: requestId,
             text: result ? JSON.stringify(result) : ''
           })
+        }
+      } else if (event.type === 'browser.screencast.frame') {
+        // High-frequency (multiple/sec) -- routed straight to the live-view
+        // pane's canvas via a plain subscription, never through React state.
+        if (sessionId && typeof payload?.data === 'string') {
+          writeScreencastFrame(sessionId, { data: payload.data, metadata: payload.metadata })
         }
       } else if (event.type === 'agent.terminal.output') {
         // Live chunk from a background process → its read-only agent terminal tab.

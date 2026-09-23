@@ -1983,6 +1983,49 @@ def _create_local_session(task_id: str) -> Dict[str, str]:
     }
 
 
+def _ensure_local_chrome_debug_running(cdp_url: str) -> str:
+    """Headlessly auto-launch our own managed local Chrome debug profile if
+    ``cdp_url`` points at it and nothing is listening there yet.
+
+    Covers agent-driven ``browser_navigate`` (etc.) that never went through
+    the manual ``/browser connect`` command: once a user completes the
+    Settings "Connect Google account" one-time sign-in (which persists
+    ``browser.cdp_url`` pointed at our default local debug port), every
+    future browser tool call should transparently pick up that signed-in
+    profile without requiring `/browser connect` first.
+
+    Deliberately scoped to OUR OWN default local port only -- a
+    user-configured remote/cloud CDP endpoint that happens to be temporarily
+    unreachable is left alone; we have no business launching a browser on
+    someone else's behalf for an endpoint we don't manage.
+    """
+    try:
+        from urllib.parse import urlparse
+
+        from hermes_cli.browser_connect import (
+            DEFAULT_BROWSER_CDP_PORT,
+            is_browser_debug_ready,
+            launch_chrome_debug,
+        )
+
+        parsed = urlparse(cdp_url)
+        if parsed.hostname not in ("127.0.0.1", "localhost") or (parsed.port or 0) != DEFAULT_BROWSER_CDP_PORT:
+            return cdp_url
+        if is_browser_debug_ready(cdp_url, timeout=0.5):
+            return cdp_url
+
+        logger.info("Local Chrome debug profile not running; auto-launching headlessly for agent use")
+        launch = launch_chrome_debug(DEFAULT_BROWSER_CDP_PORT, headless=True)
+        if launch.launched:
+            for _ in range(20):
+                time.sleep(0.5)
+                if is_browser_debug_ready(cdp_url, timeout=1.0):
+                    break
+    except Exception as exc:  # noqa: BLE001 - must never break the browser session itself
+        logger.debug("Auto-launch of local Chrome debug profile failed (non-fatal): %s", exc)
+    return cdp_url
+
+
 def _create_cdp_session(task_id: str, cdp_url: str) -> Dict[str, str]:
     """Create a session that connects to a user-supplied CDP endpoint."""
     import uuid
@@ -2038,6 +2081,7 @@ def _get_session_info(task_id: Optional[str] = None) -> Dict[str, Any]:
     # Create session outside the lock (network call in cloud mode)
     cdp_override = _get_cdp_override()
     if cdp_override and not force_local:
+        cdp_override = _ensure_local_chrome_debug_running(cdp_override)
         session_info = _create_cdp_session(task_id, cdp_override)
     elif force_local:
         session_info = _create_local_session(task_id)

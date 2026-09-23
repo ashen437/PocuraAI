@@ -322,7 +322,8 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
   },
   browser: {
     allowPrivateUrls: 'Browser Private URLs',
-    autoLocalForPrivateUrls: 'Local Browser For Private URLs'
+    autoLocalForPrivateUrls: 'Local Browser For Private URLs',
+    cdpUrl: 'Agent Browser'
   },
   checkpoints: {
     enabled: 'File Checkpoints',
@@ -452,6 +453,9 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
   codeExecution: {
     mode: 'How strictly code execution is scoped to the current project.'
   },
+  browser: {
+    cdpUrl: 'A dedicated Chrome profile the agent browses with, signed into your Google account once.'
+  },
   fileReadMaxChars: 'Maximum characters Pocura can read from one file request.',
   approvals: {
     mode: 'How Pocura handles commands that need explicit approval.',
@@ -527,7 +531,8 @@ export const SECTIONS: DesktopConfigSection[] = [
       'code_execution.mode',
       'terminal.persistent_shell',
       'terminal.env_passthrough',
-      'file_read_max_chars'
+      'file_read_max_chars',
+      'browser.cdp_url'
     ]
   },
   {
